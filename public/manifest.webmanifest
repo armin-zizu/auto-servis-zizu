@@ -1,0 +1,20 @@
+{
+  "name": "Auto Servis Zizu",
+  "short_name": "Auto Servis Zizu",
+  "description": "Upravljanje auto servisom, radnim nalozima i isplatama.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8fafc",
+  "theme_color": "#1d4ed8",
+  "lang": "bs",
+  "icons": [
+    {
+      "src": "/assets/images/app_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
