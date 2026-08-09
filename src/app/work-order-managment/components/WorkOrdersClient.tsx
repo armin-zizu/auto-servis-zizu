@@ -118,11 +118,8 @@ useEffect(() => {
   }, [orders, searchParams]);
 
   const mechanicFilterOptions = useMemo(
-    () => [
-      'Svi',
-      ...Array.from(new Set([...activeMechanicNames(mechanics), ...orders.map((o) => o.mechanic)])),
-    ],
-    [mechanics, orders]
+    () => ['Svi', ...activeMechanicNames(mechanics)],
+    [mechanics]
   );
 
   const filtered = useMemo(() => {

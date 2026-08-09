@@ -22,18 +22,18 @@ interface Salary {
   paid: boolean;
 }
 
-const initialPayouts: Payout[] = [
-  { id: 'mech-001', name: 'Derek Hollis', orders: 18, amount: 2184, paid: false },
-  { id: 'mech-002', name: 'Tomas Reyes', orders: 14, amount: 1542, paid: false },
-  { id: 'mech-003', name: 'Mei-Ling Park', orders: 11, amount: 954, paid: false },
-  { id: 'mech-004', name: 'Antoine Briggs', orders: 9, amount: 792, paid: true },
-];
+const initialPayouts: Payout[] = [];
+const demoPayoutIds = new Set(['mech-001', 'mech-002', 'mech-003', 'mech-004']);
 const PAYOUTS_STORAGE_KEY = 'autoservis-payouts';
 const SALARIES_STORAGE_KEY = 'autoservis-salaries';
 
 function readStored<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
   return readCache<T>(key, fallback);
+}
+
+function withoutDemoPayouts(payouts: Payout[]): Payout[] {
+  return payouts.filter((payout) => !demoPayoutIds.has(payout.id));
 }
 
 function readSession() {
@@ -57,6 +57,9 @@ export default function MechanicPayoutsPage() {
   const [salaryName, setSalaryName] = useState('');
   const [salaryMonth, setSalaryMonth] = useState('2026-08');
   const [salaryAmount, setSalaryAmount] = useState('');
+  const [payoutName, setPayoutName] = useState('');
+  const [payoutOrders, setPayoutOrders] = useState('');
+  const [payoutAmount, setPayoutAmount] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
   const [isMechanic, setIsMechanic] = useState(false);
 
@@ -66,13 +69,13 @@ useEffect(() => {
     setIsMechanic(mechanicSession);
     setCurrentUserName(session?.userName || '');
     if (mechanicSession && session?.userName) setSalaryName(session.userName);
-    setPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts));
+    setPayouts(withoutDemoPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts)));
     setSalaries(readStored(SALARIES_STORAGE_KEY, []));
     setStorageLoaded(true);
     // Pull latest from shared storage on mount.
     void import('@/lib/syncStore').then(({ pull }) => {
       void pull<Payout[]>(PAYOUTS_STORAGE_KEY).then((remote) => {
-        if (remote) setPayouts(remote);
+        if (remote) setPayouts(withoutDemoPayouts(remote));
       });
       void pull<Salary[]>(SALARIES_STORAGE_KEY).then((remote) => {
         if (remote) setSalaries(remote);
@@ -80,7 +83,7 @@ useEffect(() => {
     });
     // Subscribe to realtime changes from other devices.
     const unsubPayouts = subscribe<Payout[]>(PAYOUTS_STORAGE_KEY, () => {
-      setPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts));
+      setPayouts(withoutDemoPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts)));
     });
     const unsubSalaries = subscribe<Salary[]>(SALARIES_STORAGE_KEY, () => {
       setSalaries(readStored(SALARIES_STORAGE_KEY, []));
@@ -117,7 +120,8 @@ useEffect(() => {
 
   useEffect(() => {
     if (!availableMechanics.includes(salaryName)) setSalaryName(availableMechanics[0] ?? '');
-  }, [availableMechanics, salaryName]);
+    if (!availableMechanics.includes(payoutName)) setPayoutName(availableMechanics[0] ?? '');
+  }, [availableMechanics, salaryName, payoutName]);
   const unpaidTotal =
     visiblePayouts
       .filter((payout) => !payout.paid)
@@ -130,6 +134,18 @@ useEffect(() => {
     setPayouts((current) =>
       current.map((payout) => (payout.id === id ? { ...payout, ...changes } : payout))
     );
+  const addPayout = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const amount = Number(payoutAmount);
+    const orders = Number(payoutOrders);
+    if (!payoutName || !Number.isFinite(amount) || amount < 0 || !Number.isFinite(orders) || orders < 0) return;
+    setPayouts((current) => [
+      ...current,
+      { id: `payout-${Date.now()}`, name: payoutName, orders, amount, paid: false },
+    ]);
+    setPayoutOrders('');
+    setPayoutAmount('');
+  };
   const addSalary = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const amount = Number(salaryAmount);
@@ -268,6 +284,37 @@ useEffect(() => {
           )}
         </div>
         {!isMechanic && (
+          <>
+          <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+            <div className="px-5 py-4 border-b border-border">
+              <h2 className="font-semibold text-foreground">Nova isplata majstoru</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Dodajte samo isplate koje želite evidentirati.
+              </p>
+            </div>
+            <form onSubmit={addPayout} className="px-5 py-4 grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-4 gap-3 items-end">
+              <label className="text-xs font-medium text-foreground">
+                Majstor
+                <select value={payoutName} onChange={(event) => setPayoutName(event.target.value)} required className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring">
+                  {availableMechanics.map((name) => <option key={name}>{name}</option>)}
+                </select>
+              </label>
+              <label className="text-xs font-medium text-foreground">
+                Broj naloga
+                <input type="number" min={0} step={1} value={payoutOrders} onChange={(event) => setPayoutOrders(event.target.value)} required placeholder="npr. 4" className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
+              </label>
+              <label className="text-xs font-medium text-foreground">
+                Iznos isplate
+                <div className="relative mt-1">
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">KM</span>
+                  <input type="number" min={0} step={0.01} value={payoutAmount} onChange={(event) => setPayoutAmount(event.target.value)} required placeholder="npr. 450" className="w-full pl-3 pr-10 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring" />
+                </div>
+              </label>
+              <button type="submit" className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors">
+                <Plus size={16} /> Dodaj isplatu
+              </button>
+            </form>
+          </div>
           <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <h2 className="font-semibold text-foreground">Nova mjesečna plata</h2>
@@ -327,6 +374,7 @@ useEffect(() => {
               </button>
             </form>
           </div>
+          </>
         )}
       </div>
     </AppLayout>
