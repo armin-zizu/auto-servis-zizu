@@ -3,6 +3,7 @@ node_modules/
 
 # Local environment secrets
 .env*
+!.env.example
 package-lock.json
 
 # Next.js build output

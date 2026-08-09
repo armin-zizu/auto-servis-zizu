@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Eye, EyeOff, Copy, CheckCheck, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { readAccounts } from '@/lib/accounts';
+import { findMechanic, readMechanics } from '@/lib/mechanics';
 
 interface LoginValues {
   email: string;
@@ -16,13 +18,6 @@ interface DemoCredential {
   email: string;
   password: string;
   description: string;
-}
-
-interface StoredMechanicAccount {
-  fullName: string;
-  email: string;
-  password: string;
-  role: 'mechanic';
 }
 
 const demoCredentials: DemoCredential[] = [
@@ -64,9 +59,10 @@ export default function LoginForm() {
 
   const autofill = (cred: DemoCredential) => {
     setValue('email', cred.email, { shouldValidate: true });
-    const currentPassword = cred.role === 'Vlasnik / Menadžer'
-      ? window.localStorage.getItem('autoservis-owner-password') || cred.password
-      : cred.password;
+    const currentPassword =
+      cred.role === 'Vlasnik / Menadžer'
+        ? window.localStorage.getItem('autoservis-owner-password') || cred.password
+        : cred.password;
     setValue('password', currentPassword, { shouldValidate: true });
     setAuthError('');
   };
@@ -77,30 +73,33 @@ export default function LoginForm() {
     await new Promise((r) => setTimeout(r, 900));
 
     // Backend integration point: POST /api/auth/login { email, password }
-    const storedAccounts = JSON.parse(
-      window.localStorage.getItem('autoservis-mechanic-accounts') || '[]'
-    ) as StoredMechanicAccount[];
-    const ownerPassword = window.localStorage.getItem('autoservis-owner-password') || 'ShopOwner2026!';
-    const valid = demoCredentials.find((c) => (
-      c.email === data.email
-      && (c.role === 'Vlasnik / Menadžer' ? ownerPassword : c.password) === data.password
-    ));
+    const storedAccounts = readAccounts();
+    const ownerPassword =
+      window.localStorage.getItem('autoservis-owner-password') || 'ShopOwner2026!';
+    const valid = demoCredentials.find(
+      (c) =>
+        c.email === data.email &&
+        (c.role === 'Vlasnik / Menadžer' ? ownerPassword : c.password) === data.password
+    );
     const storedAccount = storedAccounts.find(
       (account) => account.email === data.email && account.password === data.password
     );
 
     if (!valid && !storedAccount) {
       setLoading(false);
-      setAuthError(
-        'Invalid credentials — use the demo accounts below to sign in.'
-      );
+      setAuthError('Invalid credentials — use the demo accounts below to sign in.');
       return;
     }
 
+    const isOwner = valid?.role === 'Vlasnik / Menadžer';
+    const linkedMechanic = findMechanic(readMechanics(), storedAccount?.mechanicId);
     const session = {
-      userRole: valid?.role === 'Vlasnik / Menadžer' ? 'owner' : 'mechanic',
-      userName: valid?.role === 'Vlasnik / Menadžer' ? 'Armin Mujić' : storedAccount?.fullName || 'Derek Hollis',
+      userRole: isOwner ? 'owner' : 'mechanic',
+      userName: isOwner
+        ? 'Armin Mujić'
+        : linkedMechanic?.name || storedAccount?.fullName || 'Derek Hollis',
       userEmail: valid?.email || storedAccount?.email || data.email,
+      mechanicId: isOwner ? undefined : linkedMechanic?.id,
     } as const;
     window.localStorage.removeItem('autoservis-session');
     window.sessionStorage.removeItem('autoservis-session');
@@ -114,9 +113,7 @@ export default function LoginForm() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-semibold text-foreground">Dobrodošli nazad</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Prijavite se na vaš AutoServis nalog
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Prijavite se na vaš AutoServis nalog</p>
       </div>
 
       {/* Greška pri autentifikaciji */}
@@ -130,9 +127,7 @@ export default function LoginForm() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Email */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-1.5">
-            Email adresa
-          </label>
+          <label className="block text-sm font-medium text-foreground mb-1.5">Email adresa</label>
           <input
             type="email"
             placeholder="vi@autoservis.shop"
@@ -146,21 +141,14 @@ export default function LoginForm() {
             })}
             className="w-full px-3.5 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground transition-colors"
           />
-          {errors.email && (
-            <p className="text-xs text-red-500 mt-1.5">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-xs text-red-500 mt-1.5">{errors.email.message}</p>}
         </div>
 
         {/* Lozinka */}
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <label className="block text-sm font-medium text-foreground">
-              Lozinka
-            </label>
-            <button
-              type="button"
-              className="text-xs text-primary hover:underline"
-            >
+            <label className="block text-sm font-medium text-foreground">Lozinka</label>
+            <button type="button" className="text-xs text-primary hover:underline">
               Zaboravili ste lozinku?
             </button>
           </div>
@@ -234,9 +222,7 @@ export default function LoginForm() {
               className="px-4 py-3 hover:bg-muted/30 cursor-pointer transition-colors group"
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold text-foreground">
-                  {cred.role}
-                </span>
+                <span className="text-xs font-semibold text-foreground">{cred.role}</span>
                 <span className="text-xs text-primary opacity-0 group-hover:opacity-100 transition-opacity font-medium">
                   Klikni za popunjavanje →
                 </span>
@@ -244,9 +230,7 @@ export default function LoginForm() {
               <p className="text-xs text-muted-foreground mb-2">{cred.description}</p>
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono-data text-xs text-foreground">
-                    {cred.email}
-                  </span>
+                  <span className="font-mono-data text-xs text-foreground">{cred.email}</span>
                   <button
                     type="button"
                     onClick={(e) => {
@@ -288,7 +272,6 @@ export default function LoginForm() {
           ))}
         </div>
       </div>
-
     </div>
   );
 }

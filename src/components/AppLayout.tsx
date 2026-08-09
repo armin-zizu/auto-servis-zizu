@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Sidebar from './Sidebar';
+import MobileNav from './MobileNav';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -20,8 +21,9 @@ export default function AppLayout({
 
   useEffect(() => {
     try {
-      const stored = window.sessionStorage.getItem('autoservis-session')
-        || window.localStorage.getItem('autoservis-session');
+      const stored =
+        window.sessionStorage.getItem('autoservis-session') ||
+        window.localStorage.getItem('autoservis-session');
       if (stored) setSession(JSON.parse(stored));
     } catch {
       setSession({ userRole, userName, userEmail });
@@ -30,10 +32,13 @@ export default function AppLayout({
 
   return (
     <div className="flex min-h-screen bg-background">
-      <Sidebar userRole={session.userRole} userName={session.userName} userEmail={session.userEmail} />
-      <main className="flex-1 min-w-0 overflow-x-hidden">
-        {children}
-      </main>
+      <Sidebar
+        userRole={session.userRole}
+        userName={session.userName}
+        userEmail={session.userEmail}
+      />
+      <main className="flex-1 min-w-0 overflow-x-hidden pb-20 lg:pb-0">{children}</main>
+      <MobileNav userRole={session.userRole} userName={session.userName} />
     </div>
   );
 }

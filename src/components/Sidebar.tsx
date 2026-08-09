@@ -73,13 +73,11 @@ export default function Sidebar({
     return pathname.startsWith(href);
   };
 
-  const visibleNav = navItems.filter(
-    (item) => !item.ownerOnly || userRole === 'owner'
-  );
+  const visibleNav = navItems.filter((item) => !item.ownerOnly || userRole === 'owner');
 
   return (
     <aside
-      className={`relative flex flex-col bg-card border-r border-border sidebar-transition shrink-0 ${
+      className={`relative hidden lg:flex flex-col bg-card border-r border-border sidebar-transition shrink-0 ${
         collapsed ? 'w-16' : 'w-60'
       }`}
       style={{ minHeight: '100vh' }}
@@ -92,9 +90,7 @@ export default function Sidebar({
       >
         <AppLogo size={32} />
         {!collapsed && (
-          <span className="font-semibold text-base text-foreground tracking-tight">
-            AutoServis
-          </span>
+          <span className="font-semibold text-base text-foreground tracking-tight">AutoServis</span>
         )}
       </div>
 
@@ -136,7 +132,8 @@ export default function Sidebar({
             className={`group flex items-center gap-3 px-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 relative
               ${
                 isActive(item.href)
-                  ? 'bg-primary/10 text-primary' :'text-secondary-foreground hover:bg-muted hover:text-foreground'
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-secondary-foreground hover:bg-muted hover:text-foreground'
               }
               ${collapsed ? 'justify-center' : ''}
             `}
@@ -164,7 +161,9 @@ export default function Sidebar({
                 : 'text-secondary-foreground hover:bg-muted hover:text-foreground'
             } ${collapsed ? 'justify-center' : ''}`}
           >
-            <span className="shrink-0"><DollarSign size={20} /></span>
+            <span className="shrink-0">
+              <DollarSign size={20} />
+            </span>
             {!collapsed && <span className="flex-1 truncate">Finansije</span>}
           </Link>
           {!collapsed && (

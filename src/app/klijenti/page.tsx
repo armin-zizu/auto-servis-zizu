@@ -7,6 +7,7 @@ import { Car, Phone, Search, UserRound } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import Modal from '@/components/ui/Modal';
 import { mockWorkOrders, WorkOrder } from '@/app/work-order-managment/data/mockWorkOrders';
+import { readCache } from '@/lib/syncStore';
 
 const clients = [
   { name: 'Rafael Dominguez', phone: '(512) 883-4201', vehicle: '2019 Toyota Camry', orders: 4 },
@@ -22,13 +23,8 @@ export default function ClientsPage() {
   const [selectedClient, setSelectedClient] = useState<typeof clients[number] | null>(null);
   const [orders, setOrders] = useState<WorkOrder[]>(mockWorkOrders);
 
-  useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem('autoservis-work-orders');
-      if (stored) setOrders(JSON.parse(stored) as WorkOrder[]);
-    } catch {
-      setOrders(mockWorkOrders);
-    }
+useEffect(() => {
+    setOrders(readCache<WorkOrder[]>('autoservis-work-orders', mockWorkOrders));
   }, []);
 
   const filteredClients = useMemo(

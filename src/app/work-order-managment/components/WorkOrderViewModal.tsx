@@ -1,7 +1,16 @@
 'use client';
 
 import React from 'react';
-import { CheckSquare, Edit2, Printer, Phone, Car, Wrench, FileText } from 'lucide-react';
+import {
+  CheckSquare,
+  Edit2,
+  Printer,
+  Phone,
+  Car,
+  Wrench,
+  FileText,
+  UserCircle2,
+} from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { WorkOrder } from '../data/mockWorkOrders';
@@ -28,7 +37,11 @@ export default function WorkOrderViewModal({
     if (!printWindow) return;
 
     const escapeHtml = (value: string) =>
-      value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+      value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
     const money = (value: number) => `${value.toFixed(2)} KM`;
     const rawPartsTotal = order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0);
     const customerDiscount = rawPartsTotal * (order.discountPct / 100);
@@ -69,7 +82,7 @@ export default function WorkOrderViewModal({
           <div class="info">
             <div class="box"><strong>Klijent</strong><p>${escapeHtml(order.clientName)}</p><p class="muted">${escapeHtml(order.clientPhone)}</p></div>
             <div class="box"><strong>Vozilo</strong><p>${escapeHtml(order.vehicle)}</p><p class="muted">VIN: ${escapeHtml(order.vehicleVin || '-')}</p></div>
-            <div class="box"><strong>Majstor</strong><p>${escapeHtml(order.mechanic)}</p></div>
+            <div class="box"><strong>Majstor</strong><p>${escapeHtml(order.mechanic)}</p><p class="muted">Nalog kreirao: ${escapeHtml(order.createdBy || '-')}</p></div>
           </div>
           <h2>Dijelovi i materijal</h2>
           <table><thead><tr><th>Opis</th><th>Količina</th><th>Jed. cijena</th><th>Ukupno</th></tr></thead><tbody>
@@ -96,271 +109,336 @@ export default function WorkOrderViewModal({
 
   return (
     <>
-    <Modal
-      open={open}
-      onClose={onClose}
-      title={order.orderNum}
-      subtitle={`Kreiran ${order.createdAt} · Zadnje ažuriranje ${order.updatedAt}`}
-      size="xl"
-      footer={
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <button onClick={handlePrintInvoice} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors">
-            <Printer size={15} />
-            Štampaj fakturu
-          </button>
-          <div className="flex items-center gap-2">
-            {order.status !== 'Zatvoren' && order.status !== 'Otkazan' && (
-              <button
-                onClick={onCloseOrder}
-                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-all active:scale-95"
-              >
-                <CheckSquare size={14} />
-                Zatvori nalog
-              </button>
-            )}
+      <Modal
+        open={open}
+        onClose={onClose}
+        title={order.orderNum}
+        subtitle={`Kreiran ${order.createdAt}${order.createdBy ? ` · ${order.createdBy}` : ''} · Zadnje ažuriranje ${order.updatedAt}`}
+        size="xl"
+        footer={
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <button
-              onClick={onEdit}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all active:scale-95"
+              onClick={handlePrintInvoice}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
-              <Edit2 size={14} />
-              Uredi nalog
+              <Printer size={15} />
+              Štampaj fakturu
             </button>
-          </div>
-        </div>
-      }
-    >
-      <div className="space-y-6">
-        {/* Status + zaglavlje */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <StatusBadge status={order.status} />
-          <div className="text-right">
-            <p className="text-2xl font-bold text-foreground tabular-nums">
-              {order.orderTotal.toFixed(2)} KM
-            </p>
-            <p className="text-xs text-muted-foreground">Ukupno nalog</p>
-          </div>
-        </div>
-
-        {/* Info grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Phone size={15} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Klijent</p>
-              <p className="text-sm font-semibold text-foreground">{order.clientName}</p>
-              <p className="text-xs text-muted-foreground">{order.clientPhone}</p>
-            </div>
-          </div>
-          <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Car size={15} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Vozilo</p>
-              <p className="text-sm font-semibold text-foreground">{order.vehicle}</p>
-              {order.vehicleVin && (
-                <p className="text-xs text-muted-foreground font-mono">{order.vehicleVin}</p>
+            <div className="flex items-center gap-2">
+              {order.status !== 'Zatvoren' && order.status !== 'Otkazan' && (
+                <button
+                  onClick={onCloseOrder}
+                  className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-emerald-700 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-all active:scale-95"
+                >
+                  <CheckSquare size={14} />
+                  Zatvori nalog
+                </button>
               )}
+              <button
+                onClick={onEdit}
+                className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-all active:scale-95"
+              >
+                <Edit2 size={14} />
+                Uredi nalog
+              </button>
             </div>
           </div>
-          <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
-              <Wrench size={15} className="text-primary" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground mb-0.5">Majstor</p>
-              <p className="text-sm font-semibold text-foreground">{order.mechanic}</p>
+        }
+      >
+        <div className="space-y-6">
+          {/* Status + zaglavlje */}
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <StatusBadge status={order.status} />
+            <div className="text-right">
+              <p className="text-2xl font-bold text-foreground tabular-nums">
+                {order.orderTotal.toFixed(2)} KM
+              </p>
+              <p className="text-xs text-muted-foreground">Ukupno nalog</p>
             </div>
           </div>
-        </div>
 
-        {/* Tabela dijelova */}
-        <div>
-          <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
-          <div className="rounded-lg border border-border overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Dio
-                  </th>
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Slika
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Kol.
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Jed. cijena
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Ukupno
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {order.parts.map((part) => (
-                  <tr key={part.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-2.5 text-foreground">{part.name}{part.category === 'oil' ? ' (ulje)' : ''}</td>
-                    <td className="px-4 py-2.5">
-                      {(part.images?.length || part.image) ? (
-                        <div className="flex gap-1.5 min-w-[120px]">
-                          {(part.images || (part.image ? [part.image] : [])).map((image, imageIndex) => (
-                            <button key={`${part.id}-view-image-${imageIndex}`} type="button" onClick={() => setSelectedPartImage(image)} className="block rounded focus:outline-none focus:ring-2 focus:ring-primary" title="Otvori sliku dijela">
-                              <img src={image} alt={`Slika dijela ${part.name} ${imageIndex + 1}`} className="h-12 w-12 rounded object-cover border border-border" />
-                            </button>
-                          ))}
-                        </div>
-                      ) : <span className="text-xs text-muted-foreground">Nema slike</span>}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                      {part.qty}
-                    </td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                      {part.unitCost.toFixed(2)} KM
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
-                      {(part.qty * part.unitCost).toFixed(2)} KM
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                {order.discountPct > 0 && (
-                  <tr className="border-t border-border bg-emerald-50/50">
-                    <td colSpan={4} className="px-4 py-2 text-xs text-emerald-700 text-right">
-                      Popust za klijenta ({order.discountPct}%)
-                    </td>
-                    <td className="px-4 py-2 text-right text-sm font-medium text-emerald-700 tabular-nums">
-                      −{(order.parts.reduce((s, p) => s + p.qty * p.unitCost, 0) * order.discountPct / 100).toFixed(2)} KM
-                    </td>
-                  </tr>
+          {/* Info grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Phone size={15} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Klijent</p>
+                <p className="text-sm font-semibold text-foreground">{order.clientName}</p>
+                <p className="text-xs text-muted-foreground">{order.clientPhone}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Car size={15} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Vozilo</p>
+                <p className="text-sm font-semibold text-foreground">{order.vehicle}</p>
+                {order.vehicleVin && (
+                  <p className="text-xs text-muted-foreground font-mono">{order.vehicleVin}</p>
                 )}
-                <tr className="border-t-2 border-border bg-muted/30">
-                    <td colSpan={4} className="px-4 py-2.5 text-xs font-semibold text-right text-foreground">
-                    Ukupno dijelovi
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">
-                    {order.partsTotal.toFixed(2)} KM
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <Wrench size={15} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Majstor</p>
+                <p className="text-sm font-semibold text-foreground">{order.mechanic}</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+              <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
+                <UserCircle2 size={15} className="text-primary" />
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-0.5">Nalog kreirao</p>
+                <p className="text-sm font-semibold text-foreground">{order.createdBy || '—'}</p>
+                <p className="text-xs text-muted-foreground">
+                  {order.createdByRole === 'mechanic' ? 'Majstor' : 'Administrator'} ·{' '}
+                  {order.createdAt}
+                </p>
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Tabela rada */}
-        <div>
-          <h4 className="text-sm font-semibold text-foreground mb-2">Rad</h4>
-          <div className="rounded-lg border border-border overflow-hidden">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Usluga
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Sati
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Cijena
-                  </th>
-                  <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                    Međuzbir
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {order.laborEntries.map((entry) => (
-                  <tr key={entry.id} className="hover:bg-muted/20">
-                    <td className="px-4 py-2.5 text-foreground">{entry.description}</td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                      {entry.hours}h
+          {/* Tabela dijelova */}
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
+            <div className="rounded-lg border border-border overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Dio
+                    </th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Slika
+                    </th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Kol.
+                    </th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Jed. cijena
+                    </th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Ukupno
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {order.parts.map((part) => (
+                    <tr key={part.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-2.5 text-foreground">
+                        {part.name}
+                        {part.category === 'oil' ? ' (ulje)' : ''}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        {part.images?.length || part.image ? (
+                          <div className="flex gap-1.5 min-w-[120px]">
+                            {(part.images || (part.image ? [part.image] : [])).map(
+                              (image, imageIndex) => (
+                                <button
+                                  key={`${part.id}-view-image-${imageIndex}`}
+                                  type="button"
+                                  onClick={() => setSelectedPartImage(image)}
+                                  className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                                  title="Otvori sliku dijela"
+                                >
+                                  <img
+                                    src={image}
+                                    alt={`Slika dijela ${part.name} ${imageIndex + 1}`}
+                                    className="h-12 w-12 rounded object-cover border border-border"
+                                  />
+                                </button>
+                              )
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Nema slike</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                        {part.qty}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                        {part.unitCost.toFixed(2)} KM
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
+                        {(part.qty * part.unitCost).toFixed(2)} KM
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  {order.discountPct > 0 && (
+                    <tr className="border-t border-border bg-emerald-50/50">
+                      <td colSpan={4} className="px-4 py-2 text-xs text-emerald-700 text-right">
+                        Popust za klijenta ({order.discountPct}%)
+                      </td>
+                      <td className="px-4 py-2 text-right text-sm font-medium text-emerald-700 tabular-nums">
+                        −
+                        {(
+                          (order.parts.reduce((s, p) => s + p.qty * p.unitCost, 0) *
+                            order.discountPct) /
+                          100
+                        ).toFixed(2)}{' '}
+                        KM
+                      </td>
+                    </tr>
+                  )}
+                  <tr className="border-t-2 border-border bg-muted/30">
+                    <td
+                      colSpan={4}
+                      className="px-4 py-2.5 text-xs font-semibold text-right text-foreground"
+                    >
+                      Ukupno dijelovi
                     </td>
-                    <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                      {entry.rate} KM/sat
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
-                      {(entry.hours * entry.rate).toFixed(2)} KM
+                    <td className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">
+                      {order.partsTotal.toFixed(2)} KM
                     </td>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-border bg-muted/30">
-                  <td colSpan={3} className="px-4 py-2.5 text-xs font-semibold text-right text-foreground">
-                    Ukupno rad
-                  </td>
-                  <td className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">
-                    {order.laborTotal.toFixed(2)} KM
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-
-        {/* Finansijski sažetak */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="p-3 bg-muted/30 rounded-lg text-center">
-            <p className="text-xs text-muted-foreground mb-1">Dijelovi</p>
-            <p className="text-base font-bold tabular-nums text-foreground">
-              {order.partsTotal.toFixed(2)} KM
-            </p>
-          </div>
-          <div className="p-3 bg-muted/30 rounded-lg text-center">
-            <p className="text-xs text-muted-foreground mb-1">Rad</p>
-            <p className="text-base font-bold tabular-nums text-foreground">
-              {order.laborTotal.toFixed(2)} KM
-            </p>
-          </div>
-          <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-center">
-            <p className="text-xs text-primary mb-1 font-medium">Ukupno nalog</p>
-            <p className="text-base font-bold tabular-nums text-primary">
-              {order.orderTotal.toFixed(2)} KM
-            </p>
-          </div>
-        </div>
-
-        {order.partsPurchaseCost !== undefined && order.serviceProfit !== undefined && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
-              <p className="text-xs text-orange-700 mb-1 font-medium">Nabavni trošak dijelova</p>
-              <p className="text-base font-bold tabular-nums text-orange-900">
-                {order.partsPurchaseCost.toFixed(2)} KM
-              </p>
-              <p className="text-xs text-orange-600 mt-1">
-                Popust dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje {order.supplierOilDiscountPct ?? 0}%
-              </p>
-            </div>
-            <div className={`p-3 rounded-lg border ${order.serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-              <p className={`text-xs mb-1 font-medium ${order.serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
-                Zarada servisa
-              </p>
-              <p className={`text-base font-bold tabular-nums ${order.serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}>
-                {order.serviceProfit.toFixed(2)} KM
-              </p>
-              <p className={`text-xs mt-1 ${order.serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                Nakon nabavke i isplate majstoru
-              </p>
+                </tfoot>
+              </table>
             </div>
           </div>
-        )}
 
-        {/* Napomene */}
-        {order.notes && (
-          <div className="flex gap-3 p-3 bg-muted/30 rounded-lg">
-            <FileText size={15} className="text-muted-foreground shrink-0 mt-0.5" />
-            <p className="text-sm text-muted-foreground leading-relaxed">{order.notes}</p>
+          {/* Tabela rada */}
+          <div>
+            <h4 className="text-sm font-semibold text-foreground mb-2">Rad</h4>
+            <div className="rounded-lg border border-border overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/40 border-b border-border">
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Usluga
+                    </th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Sati
+                    </th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Cijena
+                    </th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
+                      Međuzbir
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {order.laborEntries.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-muted/20">
+                      <td className="px-4 py-2.5 text-foreground">{entry.description}</td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                        {entry.hours}h
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
+                        {entry.rate} KM/sat
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
+                        {(entry.hours * entry.rate).toFixed(2)} KM
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t-2 border-border bg-muted/30">
+                    <td
+                      colSpan={3}
+                      className="px-4 py-2.5 text-xs font-semibold text-right text-foreground"
+                    >
+                      Ukupno rad
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-bold tabular-nums text-foreground">
+                      {order.laborTotal.toFixed(2)} KM
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
+
+          {/* Finansijski sažetak */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="p-3 bg-muted/30 rounded-lg text-center">
+              <p className="text-xs text-muted-foreground mb-1">Dijelovi</p>
+              <p className="text-base font-bold tabular-nums text-foreground">
+                {order.partsTotal.toFixed(2)} KM
+              </p>
+            </div>
+            <div className="p-3 bg-muted/30 rounded-lg text-center">
+              <p className="text-xs text-muted-foreground mb-1">Rad</p>
+              <p className="text-base font-bold tabular-nums text-foreground">
+                {order.laborTotal.toFixed(2)} KM
+              </p>
+            </div>
+            <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg text-center">
+              <p className="text-xs text-primary mb-1 font-medium">Ukupno nalog</p>
+              <p className="text-base font-bold tabular-nums text-primary">
+                {order.orderTotal.toFixed(2)} KM
+              </p>
+            </div>
+          </div>
+
+          {order.partsPurchaseCost !== undefined && order.serviceProfit !== undefined && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <p className="text-xs text-orange-700 mb-1 font-medium">Nabavni trošak dijelova</p>
+                <p className="text-base font-bold tabular-nums text-orange-900">
+                  {order.partsPurchaseCost.toFixed(2)} KM
+                </p>
+                <p className="text-xs text-orange-600 mt-1">
+                  Popust dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
+                  {order.supplierOilDiscountPct ?? 0}%
+                </p>
+              </div>
+              <div
+                className={`p-3 rounded-lg border ${order.serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
+              >
+                <p
+                  className={`text-xs mb-1 font-medium ${order.serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
+                >
+                  Zarada servisa
+                </p>
+                <p
+                  className={`text-base font-bold tabular-nums ${order.serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
+                >
+                  {order.serviceProfit.toFixed(2)} KM
+                </p>
+                <p
+                  className={`text-xs mt-1 ${order.serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                >
+                  Nakon nabavke i isplate majstoru
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Napomene */}
+          {order.notes && (
+            <div className="flex gap-3 p-3 bg-muted/30 rounded-lg">
+              <FileText size={15} className="text-muted-foreground shrink-0 mt-0.5" />
+              <p className="text-sm text-muted-foreground leading-relaxed">{order.notes}</p>
+            </div>
+          )}
+        </div>
+      </Modal>
+      <Modal
+        open={selectedPartImage !== null}
+        onClose={() => setSelectedPartImage(null)}
+        title="Slika zamijenjenog dijela"
+        size="lg"
+      >
+        {selectedPartImage && (
+          <img
+            src={selectedPartImage}
+            alt="Uvećana slika zamijenjenog dijela"
+            className="max-h-[65vh] w-full object-contain rounded-lg"
+          />
         )}
-      </div>
-    </Modal>
-    <Modal open={selectedPartImage !== null} onClose={() => setSelectedPartImage(null)} title="Slika zamijenjenog dijela" size="lg">
-      {selectedPartImage && <img src={selectedPartImage} alt="Uvećana slika zamijenjenog dijela" className="max-h-[65vh] w-full object-contain rounded-lg" />}
-    </Modal>
+      </Modal>
     </>
   );
 }

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { DollarSign } from 'lucide-react';
+import { readCache, SYNC_EVENT } from '@/lib/syncStore';
 
 interface MechanicPayout {
   id: string;
@@ -57,12 +58,12 @@ export default function MechanicPayoutList() {
   const [mechanics, setMechanics] = useState(initialMechanics);
   const [salaryTotal, setSalaryTotal] = useState(0);
 
-  useEffect(() => {
+useEffect(() => {
     const refresh = () => {
       try {
         const session = JSON.parse(window.sessionStorage.getItem('autoservis-session') || window.localStorage.getItem('autoservis-session') || 'null') as { userRole?: string; userName?: string } | null;
-        const storedPayouts = JSON.parse(window.localStorage.getItem('autoservis-payouts') || '[]') as Array<{ id: string; amount: number; paid: boolean }>;
-        const storedSalaries = JSON.parse(window.localStorage.getItem('autoservis-salaries') || '[]') as Array<{ name?: string; amount: number; paid: boolean }>;
+        const storedPayouts = readCache<Array<{ id: string; amount: number; paid: boolean }>>('autoservis-payouts', []);
+        const storedSalaries = readCache<Array<{ name?: string; amount: number; paid: boolean }>>('autoservis-salaries', []);
         const isMechanic = session?.userRole === 'mechanic';
         if (storedPayouts.length > 0) {
           setMechanics((current) => current.filter((mechanic) => !isMechanic || mechanic.name === session?.userName).map((mechanic) => {
@@ -80,7 +81,16 @@ export default function MechanicPayoutList() {
     };
     refresh();
     window.addEventListener('storage', refresh);
-    return () => window.removeEventListener('storage', refresh);
+    window.addEventListener(SYNC_EVENT, refresh);
+    // Pull latest payouts/salaries from shared storage on mount.
+    void import('@/lib/syncStore').then(({ pull }) => {
+      void pull<Array<{ id: string; amount: number; paid: boolean }>>('autoservis-payouts').then(() => refresh());
+      void pull<Array<{ name?: string; amount: number; paid: boolean }>>('autoservis-salaries').then(() => refresh());
+    });
+    return () => {
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener(SYNC_EVENT, refresh);
+    };
   }, []);
 
   const totalDue = mechanics
