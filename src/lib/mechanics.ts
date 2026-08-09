@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { readCache, writeCache, subscribe, push, pull } from './syncStore';
 
 export interface Mechanic {
   id: string;
@@ -51,20 +52,16 @@ export const defaultMechanics: Mechanic[] = [
 
 export function readMechanics(): Mechanic[] {
   if (typeof window === 'undefined') return defaultMechanics;
-  try {
-    const stored = window.localStorage.getItem(MECHANICS_STORAGE_KEY);
-    if (!stored) return defaultMechanics;
-    const parsed = JSON.parse(stored) as Mechanic[];
-    return Array.isArray(parsed) ? parsed : defaultMechanics;
-  } catch {
-    return defaultMechanics;
-  }
+  return readCache<Mechanic[]>(MECHANICS_STORAGE_KEY, defaultMechanics);
 }
 
-export function writeMechanics(mechanics: Mechanic[]) {
+export async function writeMechanics(mechanics: Mechanic[]) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(MECHANICS_STORAGE_KEY, JSON.stringify(mechanics));
+  writeCache(MECHANICS_STORAGE_KEY, mechanics);
   window.dispatchEvent(new Event(MECHANICS_EVENT));
+  // Push to shared Supabase storage so other devices see it.
+  const { push } = await import('./syncStore');
+  void push(MECHANICS_STORAGE_KEY, mechanics);
 }
 
 export function findMechanic(mechanics: Mechanic[], id?: string): Mechanic | undefined {
@@ -95,9 +92,14 @@ export function useMechanics() {
     setLoaded(true);
     window.addEventListener(MECHANICS_EVENT, sync);
     window.addEventListener('storage', sync);
+    // Subscribe to realtime changes from other devices.
+    const unsub = subscribe<Mechanic[]>(MECHANICS_STORAGE_KEY, sync);
+    // Pull latest from shared storage on mount.
+    void import('./syncStore').then(({ pull }) => pull<Mechanic[]>(MECHANICS_STORAGE_KEY));
     return () => {
       window.removeEventListener(MECHANICS_EVENT, sync);
       window.removeEventListener('storage', sync);
+      unsub();
     };
   }, []);
 

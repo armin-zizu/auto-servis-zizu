@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { readCache, SYNC_EVENT } from '@/lib/syncStore';
 import {
   ClipboardList,
   CheckCircle2,
@@ -128,14 +129,14 @@ interface DashboardSalary {
 
 function readDashboardData() {
   try {
-    const storedOrders = window.localStorage.getItem('autoservis-work-orders');
-    const storedPayouts = window.localStorage.getItem('autoservis-payouts');
-    const storedSalaries = window.localStorage.getItem('autoservis-salaries');
+    const storedOrders = readCache<DashboardOrder[] | null>('autoservis-work-orders', null);
+    const storedPayouts = readCache<DashboardPayout[] | null>('autoservis-payouts', null);
+    const storedSalaries = readCache<DashboardSalary[] | null>('autoservis-salaries', null);
     if (!storedOrders && !storedPayouts && !storedSalaries) return {};
     const session = JSON.parse(window.sessionStorage.getItem('autoservis-session') || window.localStorage.getItem('autoservis-session') || 'null') as { userRole?: string; userName?: string } | null;
-    const allOrders = JSON.parse(storedOrders || '[]') as DashboardOrder[];
-    const allPayouts = JSON.parse(storedPayouts || '[]') as (DashboardPayout & { name?: string })[];
-    const allSalaries = JSON.parse(storedSalaries || '[]') as (DashboardSalary & { name?: string })[];
+const allOrders = (storedOrders || []) as DashboardOrder[];
+    const allPayouts = (storedPayouts || []) as (DashboardPayout & { name?: string })[];
+    const allSalaries = (storedSalaries || []) as (DashboardSalary & { name?: string })[];
     const isMechanic = session?.userRole === 'mechanic';
     const orders = isMechanic ? allOrders.filter((order) => order.mechanic === session?.userName) : allOrders;
     const payouts = isMechanic ? allPayouts.filter((payout) => payout.name === session?.userName) : allPayouts;
@@ -315,11 +316,15 @@ export default function MetricsBentoGrid() {
 
   const [dynamicMetrics, setDynamicMetrics] = useState<Record<string, Partial<MetricCardData>>>({});
 
-  useEffect(() => {
+useEffect(() => {
     const refresh = () => setDynamicMetrics(readDashboardData());
     refresh();
     window.addEventListener('storage', refresh);
-    return () => window.removeEventListener('storage', refresh);
+    window.addEventListener(SYNC_EVENT, refresh);
+    return () => {
+      window.removeEventListener('storage', refresh);
+      window.removeEventListener(SYNC_EVENT, refresh);
+    };
   }, []);
 
   const liveMetrics = metrics.map((metric) => ({ ...metric, ...dynamicMetrics[metric.id] }));

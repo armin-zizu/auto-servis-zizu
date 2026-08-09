@@ -16,20 +16,18 @@ import {
 import AppLayout from '@/components/AppLayout';
 import { Mechanic, findMechanic, useMechanics } from '@/lib/mechanics';
 import { ACCOUNTS_STORAGE_KEY, MechanicAccount, readAccounts } from '@/lib/accounts';
+import { readCache, writeCache, push } from '@/lib/syncStore';
 
 type Account = MechanicAccount;
 type Workshop = { name: string; address: string; phone: string; email: string };
 const accountKey = ACCOUNTS_STORAGE_KEY;
 const workshopKey = 'autoservis-workshop-settings';
 const defaultWorkshop: Workshop = { name: 'Auto Servis Zizu', address: '', phone: '', email: '' };
+const NOTIFICATION_KEY = 'autoservis-notification-settings';
+const OWNER_PASSWORD_KEY = 'autoservis-owner-password';
 
 function load<T>(key: string, fallback: T): T {
-  try {
-    const value = localStorage.getItem(key);
-    return value ? (JSON.parse(value) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  return readCache<T>(key, fallback);
 }
 
 export default function SettingsPage() {
@@ -66,9 +64,10 @@ export default function SettingsPage() {
     }
   }, []);
 
-  const saveAccounts = (next: Account[]) => {
+const saveAccounts = (next: Account[]) => {
     setAccounts(next);
-    localStorage.setItem(accountKey, JSON.stringify(next));
+    writeCache(accountKey, next);
+    void push(accountKey, next);
   };
   const selectedMechanic = findMechanic(mechanics, mechanicId);
 
@@ -154,10 +153,12 @@ export default function SettingsPage() {
     setNewPassword('');
     setMessage('Lozinka je promijenjena.');
   };
-  const updateNotices = (payout: boolean, order: boolean) => {
+const updateNotices = (payout: boolean, order: boolean) => {
     setPayoutNotices(payout);
     setOrderNotices(order);
-    localStorage.setItem('autoservis-notification-settings', JSON.stringify({ payout, order }));
+    const value = { payout, order };
+    writeCache(NOTIFICATION_KEY, value);
+    void push(NOTIFICATION_KEY, value);
   };
   const backup = () => {
     const data = Object.fromEntries(
@@ -216,10 +217,11 @@ export default function SettingsPage() {
                   />
                 ))}
               </div>
-              <button
+<button
                 type="button"
                 onClick={() => {
-                  localStorage.setItem(workshopKey, JSON.stringify(workshop));
+                  writeCache(workshopKey, workshop);
+                  void push(workshopKey, workshop);
                   setMessage('Podaci radionice su sačuvani.');
                 }}
                 className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg"
@@ -404,9 +406,10 @@ export default function SettingsPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => {
+onClick={() => {
                       if (ownerPassword.length >= 6) {
-                        localStorage.setItem('autoservis-owner-password', ownerPassword);
+                        writeCache(OWNER_PASSWORD_KEY, ownerPassword);
+                        void push(OWNER_PASSWORD_KEY, ownerPassword);
                         setOwnerPassword('');
                         setMessage('Admin lozinka je promijenjena.');
                       }

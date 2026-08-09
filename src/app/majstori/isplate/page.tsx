@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Check, Plus, Save, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
+import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
 
 interface Payout {
   id: string;
@@ -32,12 +33,7 @@ const SALARIES_STORAGE_KEY = 'autoservis-salaries';
 
 function readStored<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
-  try {
-    const stored = window.localStorage.getItem(key);
-    return stored ? (JSON.parse(stored) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  return readCache<T>(key, fallback);
 }
 
 function readSession() {
@@ -64,7 +60,7 @@ export default function MechanicPayoutsPage() {
   const [currentUserName, setCurrentUserName] = useState('');
   const [isMechanic, setIsMechanic] = useState(false);
 
-  useEffect(() => {
+useEffect(() => {
     const session = readSession();
     const mechanicSession = session?.userRole === 'mechanic';
     setIsMechanic(mechanicSession);
@@ -73,13 +69,39 @@ export default function MechanicPayoutsPage() {
     setPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts));
     setSalaries(readStored(SALARIES_STORAGE_KEY, []));
     setStorageLoaded(true);
+    // Pull latest from shared storage on mount.
+    void import('@/lib/syncStore').then(({ pull }) => {
+      void pull<Payout[]>(PAYOUTS_STORAGE_KEY).then((remote) => {
+        if (remote) setPayouts(remote);
+      });
+      void pull<Salary[]>(SALARIES_STORAGE_KEY).then((remote) => {
+        if (remote) setSalaries(remote);
+      });
+    });
+    // Subscribe to realtime changes from other devices.
+    const unsubPayouts = subscribe<Payout[]>(PAYOUTS_STORAGE_KEY, () => {
+      setPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts));
+    });
+    const unsubSalaries = subscribe<Salary[]>(SALARIES_STORAGE_KEY, () => {
+      setSalaries(readStored(SALARIES_STORAGE_KEY, []));
+    });
+    return () => {
+      unsubPayouts();
+      unsubSalaries();
+    };
   }, []);
 
   useEffect(() => {
-    if (storageLoaded) window.localStorage.setItem(PAYOUTS_STORAGE_KEY, JSON.stringify(payouts));
+    if (storageLoaded) {
+      writeCache(PAYOUTS_STORAGE_KEY, payouts);
+      void push(PAYOUTS_STORAGE_KEY, payouts);
+    }
   }, [payouts, storageLoaded]);
   useEffect(() => {
-    if (storageLoaded) window.localStorage.setItem(SALARIES_STORAGE_KEY, JSON.stringify(salaries));
+    if (storageLoaded) {
+      writeCache(SALARIES_STORAGE_KEY, salaries);
+      void push(SALARIES_STORAGE_KEY, salaries);
+    }
   }, [salaries, storageLoaded]);
 
   const visiblePayouts = isMechanic

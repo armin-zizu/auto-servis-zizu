@@ -26,6 +26,7 @@ import {
   mockWorkOrders,
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
+import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -41,19 +42,17 @@ const ALL_STATUSES: OrderStatus[] = [
 type SortKey = keyof WorkOrder | '';
 type SortDir = 'asc' | 'desc';
 
+function normalizeOrders(orders: WorkOrder[]): WorkOrder[] {
+  return orders.map((order) => ({
+    ...order,
+    createdBy: order.createdBy ?? '',
+    createdByRole: order.createdByRole ?? 'owner',
+  }));
+}
+
 function readStoredOrders(): WorkOrder[] {
   if (typeof window === 'undefined') return mockWorkOrders;
-  try {
-    const stored = window.localStorage.getItem(ORDERS_STORAGE_KEY);
-    if (!stored) return mockWorkOrders;
-    return (JSON.parse(stored) as WorkOrder[]).map((order) => ({
-      ...order,
-      createdBy: order.createdBy ?? '',
-      createdByRole: order.createdByRole ?? 'owner',
-    }));
-  } catch {
-    return mockWorkOrders;
-  }
+  return normalizeOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, mockWorkOrders));
 }
 
 export default function WorkOrdersClient() {
@@ -78,14 +77,27 @@ export default function WorkOrdersClient() {
   const searchParams = useSearchParams();
   const { mechanics } = useMechanics();
 
-  useEffect(() => {
+useEffect(() => {
     setOrders(readStoredOrders());
     setStorageLoaded(true);
+    // Pull latest from shared storage on mount.
+    void import('@/lib/syncStore').then(({ pull }) => {
+      pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
+        if (remote) setOrders(normalizeOrders(remote));
+      });
+    });
+    // Subscribe to realtime changes from other devices.
+    const unsub = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => {
+      setOrders(readStoredOrders());
+    });
+    return () => unsub();
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
     if (!storageLoaded) return;
-    window.localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+    writeCache(ORDERS_STORAGE_KEY, orders);
+    // Push to shared storage so other devices see it.
+    void push(ORDERS_STORAGE_KEY, orders);
   }, [orders, storageLoaded]);
 
   useEffect(() => {

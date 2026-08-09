@@ -11,14 +11,11 @@ import {
   WorkOrder,
   mockWorkOrders,
 } from '@/app/work-order-managment/data/mockWorkOrders';
+import { readCache } from '@/lib/syncStore';
 
 function readOrders(): WorkOrder[] {
-  try {
-    const stored = window.localStorage.getItem(ORDERS_STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as WorkOrder[]) : mockWorkOrders;
-  } catch {
-    return mockWorkOrders;
-  }
+  if (typeof window === 'undefined') return mockWorkOrders;
+  return readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, mockWorkOrders);
 }
 
 function readSession() {

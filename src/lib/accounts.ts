@@ -1,5 +1,7 @@
 'use client';
 
+import { readCache, writeCache } from './syncStore';
+
 export interface MechanicAccount {
   id: string;
   fullName: string;
@@ -14,16 +16,13 @@ export const ACCOUNTS_STORAGE_KEY = 'autoservis-mechanic-accounts';
 
 export function readAccounts(): MechanicAccount[] {
   if (typeof window === 'undefined') return [];
-  try {
-    const stored = window.localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    const parsed = stored ? (JSON.parse(stored) as MechanicAccount[]) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return readCache<MechanicAccount[]>(ACCOUNTS_STORAGE_KEY, []);
 }
 
-export function writeAccounts(accounts: MechanicAccount[]) {
+export async function writeAccounts(accounts: MechanicAccount[]) {
   if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+  writeCache(ACCOUNTS_STORAGE_KEY, accounts);
+  // Push to shared Supabase storage so other devices see it.
+  const { push } = await import('./syncStore');
+  void push(ACCOUNTS_STORAGE_KEY, accounts);
 }
