@@ -271,6 +271,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </label>
               <input
                 type="tel"
+                inputMode="tel"
                 placeholder="(512) 883-4201"
                 {...register('clientPhone')}
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
@@ -296,6 +297,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="2019"
                 maxLength={4}
                 {...register('vehicleYear', { required: 'Godina je obavezna' })}
@@ -441,6 +444,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </p>
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.5}
@@ -566,6 +570,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <td className="px-3 py-2">
                         <input
                           type="number"
+                          inputMode="numeric"
                           min={1}
                           step={1}
                           {...register(`parts.${idx}.qty`, {
@@ -582,6 +587,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </span>
                           <input
                             type="number"
+                            inputMode="decimal"
                             min={0}
                             step={0.01}
                             {...register(`parts.${idx}.unitCost`, {
@@ -722,6 +728,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <td className="px-3 py-2">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min={0.25}
                           step={0.25}
                           {...register(`laborEntries.${idx}.hours`, {
@@ -738,6 +745,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </span>
                           <input
                             type="number"
+                            inputMode="decimal"
                             min={0}
                             step={5}
                             {...register(`laborEntries.${idx}.rate`, {

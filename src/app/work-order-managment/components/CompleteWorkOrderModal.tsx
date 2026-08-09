@@ -58,6 +58,7 @@ export default function CompleteWorkOrderModal({
             Popust dobavljača na dijelove (%)
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.01}
@@ -71,6 +72,7 @@ export default function CompleteWorkOrderModal({
             Popust na ulje (%)
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.01}

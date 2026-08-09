@@ -61,6 +61,9 @@ export function writeCache(key: string, value: unknown) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    // The browser `storage` event does not fire in the same tab that made the
+    // change. Broadcast our app event so dashboard widgets refresh instantly.
+    window.dispatchEvent(new Event(SYNC_EVENT));
   } catch {
     /* storage full / unavailable */
   }
