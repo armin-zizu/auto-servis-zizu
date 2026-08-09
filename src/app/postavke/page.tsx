@@ -14,11 +14,12 @@ import {
   UserPlus,
 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
-import { readMechanics, writeMechanics } from '@/lib/mechanics';
+import { Mechanic, findMechanic, useMechanics } from '@/lib/mechanics';
+import { ACCOUNTS_STORAGE_KEY, MechanicAccount, readAccounts } from '@/lib/accounts';
 
-type Account = { id: string; fullName: string; email: string; password: string; role: 'mechanic' };
+type Account = MechanicAccount;
 type Workshop = { name: string; address: string; phone: string; email: string };
-const accountKey = 'autoservis-mechanic-accounts';
+const accountKey = ACCOUNTS_STORAGE_KEY;
 const workshopKey = 'autoservis-workshop-settings';
 const defaultWorkshop: Workshop = { name: 'Auto Servis Zizu', address: '', phone: '', email: '' };
 
@@ -32,7 +33,9 @@ function load<T>(key: string, fallback: T): T {
 }
 
 export default function SettingsPage() {
+  const { mechanics, save: saveMechanics } = useMechanics();
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [mechanicId, setMechanicId] = useState('');
   const [workshop, setWorkshop] = useState(defaultWorkshop);
   const [isOwner, setIsOwner] = useState(true);
   const [message, setMessage] = useState('');
@@ -53,7 +56,7 @@ export default function SettingsPage() {
           'null'
       ) as { userRole?: string } | null;
       setIsOwner(!session || session.userRole === 'owner');
-      setAccounts(load(accountKey, []));
+      setAccounts(readAccounts());
       setWorkshop(load(workshopKey, defaultWorkshop));
       const notices = load('autoservis-notification-settings', { payout: true, order: true });
       setPayoutNotices(notices.payout);
@@ -67,6 +70,29 @@ export default function SettingsPage() {
     setAccounts(next);
     localStorage.setItem(accountKey, JSON.stringify(next));
   };
+  const selectedMechanic = findMechanic(mechanics, mechanicId);
+
+  /** Links the login to the chosen mechanic, or creates a roster entry from the typed name. */
+  const resolveMechanic = (fullName: string, loginEmail: string): Mechanic => {
+    if (selectedMechanic) {
+      const updated = { ...selectedMechanic, email: selectedMechanic.email || loginEmail };
+      saveMechanics(mechanics.map((m) => (m.id === updated.id ? updated : m)));
+      return updated;
+    }
+    const existing = mechanics.find((m) => m.name.toLowerCase() === fullName.toLowerCase());
+    if (existing) return existing;
+    const created: Mechanic = {
+      id: `mech-${Date.now()}`,
+      name: fullName,
+      specialty: 'Servis',
+      email: loginEmail,
+      phone: '',
+      active: true,
+    };
+    saveMechanics([...mechanics, created]);
+    return created;
+  };
+
   const createAccount = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const normalizedEmail = email.trim().toLowerCase();
@@ -74,35 +100,45 @@ export default function SettingsPage() {
       setMessage('Email već postoji.');
       return;
     }
-    const fullName = name.trim();
+    const fullName = (selectedMechanic?.name ?? name).trim();
+    if (!fullName) {
+      setMessage('Unesite ime majstora ili odaberite postojećeg.');
+      return;
+    }
+    if (accounts.some((account) => account.mechanicId && account.mechanicId === mechanicId)) {
+      setMessage('Taj majstor već ima login.');
+      return;
+    }
+    const mechanic = resolveMechanic(fullName, normalizedEmail);
     saveAccounts([
       ...accounts,
       {
         id: `mechanic-${Date.now()}`,
-        fullName,
+        fullName: mechanic.name,
         email: normalizedEmail,
         password,
         role: 'mechanic',
+        mechanicId: mechanic.id,
       },
     ]);
-    const mechanics = readMechanics();
-    if (!mechanics.some((mechanic) => mechanic.name.toLowerCase() === fullName.toLowerCase())) {
-      writeMechanics([
-        ...mechanics,
-        {
-          id: `mech-${Date.now()}`,
-          name: fullName,
-          specialty: 'Servis',
-          email: normalizedEmail,
-          phone: '',
-          active: true,
-        },
-      ]);
-    }
     setName('');
     setEmail('');
     setPassword('');
-    setMessage('Login majstora je kreiran.');
+    setMechanicId('');
+    setMessage(`Login je kreiran i povezan sa majstorom ${mechanic.name}.`);
+  };
+
+  const linkAccount = (accountId: string, nextMechanicId: string) => {
+    const mechanic = findMechanic(mechanics, nextMechanicId);
+    if (!mechanic) return;
+    saveAccounts(
+      accounts.map((account) =>
+        account.id === accountId
+          ? { ...account, mechanicId: mechanic.id, fullName: mechanic.name }
+          : account
+      )
+    );
+    setMessage(`Login je povezan sa majstorom ${mechanic.name}.`);
   };
   const changeMechanicPassword = (id: string) => {
     if (newPassword.length < 6) {
@@ -195,13 +231,31 @@ export default function SettingsPage() {
               <h2 className="font-semibold flex items-center gap-2">
                 <UserPlus size={18} className="text-primary" /> Korisnici i login
               </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Svaki login je povezan sa majstorom — kada se majstor prijavi, nalozi se automatski
+                vode na njegovo ime.
+              </p>
               <form onSubmit={createAccount} className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-4">
+                <select
+                  value={mechanicId}
+                  onChange={(e) => setMechanicId(e.target.value)}
+                  className="px-3 py-2 text-sm bg-background border border-input rounded-lg"
+                >
+                  <option value="">Novi majstor (iz imena)</option>
+                  {mechanics.map((mechanic) => (
+                    <option key={mechanic.id} value={mechanic.id}>
+                      {mechanic.name}
+                      {mechanic.active ? '' : ' (neaktivan)'}
+                    </option>
+                  ))}
+                </select>
                 <input
-                  required
-                  value={name}
+                  required={!selectedMechanic}
+                  disabled={Boolean(selectedMechanic)}
+                  value={selectedMechanic ? selectedMechanic.name : name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="Ime i prezime"
-                  className="px-3 py-2 text-sm bg-background border border-input rounded-lg"
+                  className="px-3 py-2 text-sm bg-background border border-input rounded-lg disabled:opacity-60"
                 />
                 <input
                   required
@@ -234,6 +288,22 @@ export default function SettingsPage() {
                       <div>
                         <p className="text-sm font-medium">{account.fullName}</p>
                         <p className="text-xs text-muted-foreground">{account.email}</p>
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-muted-foreground">Majstor:</span>
+                          <select
+                            value={account.mechanicId ?? ''}
+                            onChange={(e) => linkAccount(account.id, e.target.value)}
+                            className="px-2 py-1 text-xs bg-background border border-input rounded-lg"
+                          >
+                            <option value="">Nije povezan</option>
+                            {mechanics.map((mechanic) => (
+                              <option key={mechanic.id} value={mechanic.id}>
+                                {mechanic.name}
+                                {mechanic.active ? '' : ' (neaktivan)'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       </div>
                       <div className="flex gap-2">
                         <button

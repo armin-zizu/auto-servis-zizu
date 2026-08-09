@@ -4,6 +4,8 @@ export interface AppSession {
   userRole: 'owner' | 'mechanic';
   userName: string;
   userEmail: string;
+  /** Roster mechanic linked to this login (mechanic sessions only). */
+  mechanicId?: string;
 }
 
 export const defaultSession: AppSession = {

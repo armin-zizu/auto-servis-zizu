@@ -67,6 +67,10 @@ export function writeMechanics(mechanics: Mechanic[]) {
   window.dispatchEvent(new Event(MECHANICS_EVENT));
 }
 
+export function findMechanic(mechanics: Mechanic[], id?: string): Mechanic | undefined {
+  return id ? mechanics.find((mechanic) => mechanic.id === id) : undefined;
+}
+
 export function activeMechanicNames(mechanics: Mechanic[]): string[] {
   return mechanics.filter((mechanic) => mechanic.active).map((mechanic) => mechanic.name);
 }
