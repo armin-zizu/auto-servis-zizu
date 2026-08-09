@@ -3,7 +3,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { DollarSign } from 'lucide-react';
-import { readCache, subscribe, SYNC_EVENT } from '@/lib/syncStore';
+import { pull, readCache, subscribe, SYNC_EVENT } from '@/lib/syncStore';
+import { formatBonusPeriod, WeeklyBonus, WEEKLY_BONUSES_STORAGE_KEY } from '@/lib/weeklyBonuses';
 
 interface Payout {
   id: string;
@@ -47,6 +48,7 @@ function readSession() {
 export default function MechanicPayoutList() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
+  const [weeklyBonuses, setWeeklyBonuses] = useState<WeeklyBonus[]>([]);
   const [session, setSession] = useState<{ userRole?: string; userName?: string } | null>(null);
 
   useEffect(() => {
@@ -58,15 +60,21 @@ export default function MechanicPayoutList() {
         )
       );
       setSalaries(readCache<Salary[]>('autoservis-salaries', []));
+      setWeeklyBonuses(readCache<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, []));
     };
     refresh();
     const unsubscribePayouts = subscribe<Payout[]>('autoservis-payouts', refresh);
     const unsubscribeSalaries = subscribe<Salary[]>('autoservis-salaries', refresh);
+    const unsubscribeBonuses = subscribe<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, refresh);
+    void pull<Payout[]>('autoservis-payouts').then(refresh);
+    void pull<Salary[]>('autoservis-salaries').then(refresh);
+    void pull<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY).then(refresh);
     window.addEventListener(SYNC_EVENT, refresh);
     window.addEventListener('storage', refresh);
     return () => {
       unsubscribePayouts();
       unsubscribeSalaries();
+      unsubscribeBonuses();
       window.removeEventListener(SYNC_EVENT, refresh);
       window.removeEventListener('storage', refresh);
     };
@@ -88,11 +96,18 @@ export default function MechanicPayoutList() {
         paid: salary.paid,
         detail: `Mjesečna plata · ${salary.month}`,
       })),
+      ...weeklyBonuses.map((bonus) => ({
+        id: bonus.id,
+        name: bonus.mechanic,
+        amount: Number(bonus.amount) || 0,
+        paid: bonus.paid,
+        detail: `Bonus 10% · ${formatBonusPeriod({ start: bonus.periodStart, end: bonus.periodEnd })}`,
+      })),
     ];
     return session?.userRole === 'mechanic'
       ? rows.filter((row) => row.name === session.userName)
       : rows;
-  }, [payouts, salaries, session]);
+  }, [payouts, salaries, weeklyBonuses, session]);
 
   const totalDue = payments.filter((payment) => !payment.paid).reduce((sum, payment) => sum + payment.amount, 0);
 

@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { readCache, SYNC_EVENT } from '@/lib/syncStore';
+import { WEEKLY_BONUSES_STORAGE_KEY } from '@/lib/weeklyBonuses';
 import {
   ClipboardList,
   CheckCircle2,
@@ -127,27 +128,37 @@ interface DashboardSalary {
   paid: boolean;
 }
 
+interface DashboardBonus {
+  mechanic: string;
+  amount: number;
+  paid: boolean;
+}
+
 function readDashboardData() {
   try {
     const storedOrders = readCache<DashboardOrder[] | null>('autoservis-work-orders', null);
     const storedPayouts = readCache<DashboardPayout[] | null>('autoservis-payouts', null);
     const storedSalaries = readCache<DashboardSalary[] | null>('autoservis-salaries', null);
-    if (!storedOrders && !storedPayouts && !storedSalaries) return {};
+    const storedBonuses = readCache<DashboardBonus[] | null>(WEEKLY_BONUSES_STORAGE_KEY, null);
+    if (!storedOrders && !storedPayouts && !storedSalaries && !storedBonuses) return {};
     const session = JSON.parse(window.sessionStorage.getItem('autoservis-session') || window.localStorage.getItem('autoservis-session') || 'null') as { userRole?: string; userName?: string } | null;
 const allOrders = (storedOrders || []) as DashboardOrder[];
     const allPayouts = (storedPayouts || []) as (DashboardPayout & { name?: string })[];
     const allSalaries = (storedSalaries || []) as (DashboardSalary & { name?: string })[];
+    const allBonuses = (storedBonuses || []) as DashboardBonus[];
     const isMechanic = session?.userRole === 'mechanic';
     const orders = isMechanic ? allOrders.filter((order) => order.mechanic === session?.userName) : allOrders;
     const payouts = isMechanic ? allPayouts.filter((payout) => payout.name === session?.userName) : allPayouts;
     const salaries = isMechanic ? allSalaries.filter((salary) => salary.name === session?.userName) : allSalaries;
+    const bonuses = isMechanic ? allBonuses.filter((bonus) => bonus.mechanic === session?.userName) : allBonuses;
     const activeOrders = orders.filter((order) => order.status !== 'Zatvoren' && order.status !== 'Otkazan');
     const closedOrders = orders.filter((order) => order.status === 'Zatvoren');
     const revenue = orders.reduce((sum, order) => sum + Number(order.orderTotal || 0), 0);
     const parts = orders.reduce((sum, order) => sum + Number(order.partsTotal || 0), 0);
     const labor = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0), 0);
     const unpaid = payouts.filter((payout) => !payout.paid).reduce((sum, payout) => sum + Number(payout.amount || 0), 0)
-      + salaries.filter((salary) => !salary.paid).reduce((sum, salary) => sum + Number(salary.amount || 0), 0);
+      + salaries.filter((salary) => !salary.paid).reduce((sum, salary) => sum + Number(salary.amount || 0), 0)
+      + bonuses.filter((bonus) => !bonus.paid).reduce((sum, bonus) => sum + Number(bonus.amount || 0), 0);
     const formatKm = (value: number) => `${Math.round(value).toLocaleString()} KM`;
     const revenuePercent = revenue ? `${((labor / revenue) * 100).toFixed(1)}% od prihoda` : '0% od prihoda';
 

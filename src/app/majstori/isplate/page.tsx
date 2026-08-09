@@ -6,6 +6,15 @@ import { Check, Plus, Save, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
+import { ORDERS_STORAGE_KEY, WorkOrder, mockWorkOrders } from '@/app/work-order-managment/data/mockWorkOrders';
+import {
+  calculateWeeklyBonuses,
+  formatBonusPeriod,
+  getWeeklyBonusPeriod,
+  WeeklyBonus,
+  WEEKLY_BONUSES_STORAGE_KEY,
+  WEEKLY_BONUS_RATE,
+} from '@/lib/weeklyBonuses';
 
 interface Payout {
   id: string;
@@ -53,6 +62,7 @@ export default function MechanicPayoutsPage() {
 
   const [payouts, setPayouts] = useState(initialPayouts);
   const [salaries, setSalaries] = useState<Salary[]>([]);
+  const [weeklyBonuses, setWeeklyBonuses] = useState<WeeklyBonus[]>([]);
   const [storageLoaded, setStorageLoaded] = useState(false);
   const [salaryName, setSalaryName] = useState('');
   const [salaryMonth, setSalaryMonth] = useState('2026-08');
@@ -62,6 +72,8 @@ export default function MechanicPayoutsPage() {
   const [payoutAmount, setPayoutAmount] = useState('');
   const [currentUserName, setCurrentUserName] = useState('');
   const [isMechanic, setIsMechanic] = useState(false);
+  const [bonusMessage, setBonusMessage] = useState('');
+  const bonusPeriod = useMemo(() => getWeeklyBonusPeriod(), []);
 
 useEffect(() => {
     const session = readSession();
@@ -71,6 +83,7 @@ useEffect(() => {
     if (mechanicSession && session?.userName) setSalaryName(session.userName);
     setPayouts(withoutDemoPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts)));
     setSalaries(readStored(SALARIES_STORAGE_KEY, []));
+    setWeeklyBonuses(readStored(WEEKLY_BONUSES_STORAGE_KEY, []));
     setStorageLoaded(true);
     // Pull latest from shared storage on mount.
     void import('@/lib/syncStore').then(({ pull }) => {
@@ -80,6 +93,9 @@ useEffect(() => {
       void pull<Salary[]>(SALARIES_STORAGE_KEY).then((remote) => {
         if (remote) setSalaries(remote);
       });
+      void pull<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY).then((remote) => {
+        if (remote) setWeeklyBonuses(remote);
+      });
     });
     // Subscribe to realtime changes from other devices.
     const unsubPayouts = subscribe<Payout[]>(PAYOUTS_STORAGE_KEY, () => {
@@ -88,9 +104,13 @@ useEffect(() => {
     const unsubSalaries = subscribe<Salary[]>(SALARIES_STORAGE_KEY, () => {
       setSalaries(readStored(SALARIES_STORAGE_KEY, []));
     });
+    const unsubBonuses = subscribe<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, () => {
+      setWeeklyBonuses(readStored(WEEKLY_BONUSES_STORAGE_KEY, []));
+    });
     return () => {
       unsubPayouts();
       unsubSalaries();
+      unsubBonuses();
     };
   }, []);
 
@@ -106,6 +126,12 @@ useEffect(() => {
       void push(SALARIES_STORAGE_KEY, salaries);
     }
   }, [salaries, storageLoaded]);
+  useEffect(() => {
+    if (storageLoaded) {
+      writeCache(WEEKLY_BONUSES_STORAGE_KEY, weeklyBonuses);
+      void push(WEEKLY_BONUSES_STORAGE_KEY, weeklyBonuses);
+    }
+  }, [weeklyBonuses, storageLoaded]);
 
   const visiblePayouts = isMechanic
     ? payouts.filter((payout) => payout.name === currentUserName)
@@ -113,6 +139,9 @@ useEffect(() => {
   const visibleSalaries = isMechanic
     ? salaries.filter((salary) => salary.name === currentUserName)
     : salaries;
+  const visibleBonuses = isMechanic
+    ? weeklyBonuses.filter((bonus) => bonus.mechanic === currentUserName)
+    : weeklyBonuses;
   const availableMechanics = useMemo(
     () => (isMechanic && currentUserName ? [currentUserName] : activeMechanicNames(mechanics)),
     [isMechanic, currentUserName, mechanics]
@@ -128,7 +157,12 @@ useEffect(() => {
       .reduce((total, payout) => total + payout.amount, 0) +
     visibleSalaries
       .filter((salary) => !salary.paid)
-      .reduce((total, salary) => total + salary.amount, 0);
+      .reduce((total, salary) => total + salary.amount, 0) +
+    visibleBonuses
+      .filter((bonus) => !bonus.paid)
+      .reduce((total, bonus) => total + bonus.amount, 0);
+
+  const currentPeriodBonuses = weeklyBonuses.filter((bonus) => bonus.periodKey === bonusPeriod.key);
 
   const updatePayout = (id: string, changes: Partial<Payout>) =>
     setPayouts((current) =>
@@ -156,6 +190,20 @@ useEffect(() => {
     ]);
     setSalaryAmount('');
   };
+  const createWeeklyBonus = () => {
+    if (currentPeriodBonuses.length > 0) {
+      setBonusMessage('Obračun za ovaj period je već kreiran.');
+      return;
+    }
+    const orders = readStored<WorkOrder[]>(ORDERS_STORAGE_KEY, mockWorkOrders);
+    const bonuses = calculateWeeklyBonuses(orders, activeMechanicNames(mechanics), bonusPeriod);
+    if (!bonuses.length) {
+      setBonusMessage('Nema zatvorenih naloga za aktivne majstore u ovom periodu.');
+      return;
+    }
+    setWeeklyBonuses((current) => [...current, ...bonuses]);
+    setBonusMessage(`Obračun je kreiran za ${bonuses.length} majstora.`);
+  };
 
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
@@ -168,6 +216,71 @@ useEffect(() => {
           <p className="text-sm text-muted-foreground mt-1">
             Unesite iznos i označite kada je isplata izvršena
           </p>
+        </div>
+        <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold text-foreground">Sedmični bonus od rada</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Period: {formatBonusPeriod(bonusPeriod)} · {WEEKLY_BONUS_RATE}% od rada na zatvorenim nalozima
+              </p>
+            </div>
+            {!isMechanic && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={createWeeklyBonus}
+                  disabled={currentPeriodBonuses.length > 0}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <Plus size={16} /> {currentPeriodBonuses.length > 0 ? 'Obračun je kreiran' : 'Obračunaj bonus'}
+                </button>
+                {currentPeriodBonuses.some((bonus) => !bonus.paid) && (
+                  <button
+                    type="button"
+                    onClick={() => setWeeklyBonuses((current) => current.map((bonus) => bonus.periodKey === bonusPeriod.key ? { ...bonus, paid: true } : bonus))}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700"
+                  >
+                    <Check size={16} /> Označi sve isplaćeno
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          {bonusMessage && <p className="px-5 pt-3 text-xs text-primary">{bonusMessage}</p>}
+          {currentPeriodBonuses.length > 0 ? (
+            <div className="divide-y divide-border">
+              {currentPeriodBonuses
+                .filter((bonus) => !isMechanic || bonus.mechanic === currentUserName)
+                .map((bonus) => (
+                  <div key={bonus.id} className="px-5 py-3 flex items-center justify-between gap-4 flex-wrap">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">{bonus.mechanic}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {bonus.orders} zatvorenih naloga · rad {bonus.laborRevenue.toLocaleString()} KM · {WEEKLY_BONUS_RATE}% bonus
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`text-base font-bold tabular-nums ${bonus.paid ? 'text-muted-foreground line-through' : 'text-foreground'}`}>
+                        {bonus.amount.toLocaleString()} KM
+                      </span>
+                      {!isMechanic && (
+                        <button
+                          type="button"
+                          onClick={() => setWeeklyBonuses((current) => current.map((item) => item.id === bonus.id ? { ...item, paid: !item.paid } : item))}
+                          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium ${bonus.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                        >
+                          {bonus.paid ? <Check size={14} /> : <Save size={14} />}
+                          {bonus.paid ? 'Isplaćeno' : 'Označi isplaćeno'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          ) : (
+            <p className="px-5 py-5 text-sm text-muted-foreground">Još nema obračuna bonusa za ovaj petak.</p>
+          )}
         </div>
         <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
           <div className="px-5 py-4 border-b border-border flex items-center justify-between">
