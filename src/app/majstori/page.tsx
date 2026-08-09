@@ -1,47 +1,231 @@
-import React from 'react';
-import Link from 'next/link';
-import { ArrowRight, Users, Wrench } from 'lucide-react';
-import AppLayout from '@/components/AppLayout';
+'use client';
 
-const mechanics = [
-  { name: 'Derek Hollis', specialty: 'Servis i dijagnostika', orders: 18, status: 'Aktivan' },
-  { name: 'Tomas Reyes', specialty: 'Kočnice i ovjes', orders: 14, status: 'Aktivan' },
-  { name: 'Mei-Ling Park', specialty: 'Elektronika', orders: 11, status: 'Aktivan' },
-  { name: 'Antoine Briggs', specialty: 'Motor i mjenjač', orders: 9, status: 'Aktivan' },
-];
+import React, { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight, Plus, Trash2, Users, Wrench } from 'lucide-react';
+import AppLayout from '@/components/AppLayout';
+import ConfirmModal from '@/components/ui/ConfirmModal';
+import { Mechanic, useMechanics } from '@/lib/mechanics';
+import {
+  ORDERS_STORAGE_KEY,
+  WorkOrder,
+  mockWorkOrders,
+} from '@/app/work-order-managment/data/mockWorkOrders';
+
+function readOrders(): WorkOrder[] {
+  try {
+    const stored = window.localStorage.getItem(ORDERS_STORAGE_KEY);
+    return stored ? (JSON.parse(stored) as WorkOrder[]) : mockWorkOrders;
+  } catch {
+    return mockWorkOrders;
+  }
+}
+
+function readSession() {
+  try {
+    return JSON.parse(
+      window.sessionStorage.getItem('autoservis-session') ||
+        window.localStorage.getItem('autoservis-session') ||
+        'null'
+    ) as { userRole?: string } | null;
+  } catch {
+    return null;
+  }
+}
 
 export default function MechanicsPage() {
+  const { mechanics, save } = useMechanics();
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [isOwner, setIsOwner] = useState(true);
+  const [name, setName] = useState('');
+  const [specialty, setSpecialty] = useState('');
+  const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState<Mechanic | null>(null);
+
+  useEffect(() => {
+    const session = readSession();
+    setIsOwner(!session || session.userRole === 'owner');
+    setOrders(readOrders());
+  }, []);
+
+  const completedByMechanic = useMemo(() => {
+    const counts = new Map<string, number>();
+    orders
+      .filter((order) => order.status === 'Zatvoren')
+      .forEach((order) => counts.set(order.mechanic, (counts.get(order.mechanic) ?? 0) + 1));
+    return counts;
+  }, [orders]);
+
+  const addMechanic = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    if (mechanics.some((mechanic) => mechanic.name.toLowerCase() === trimmedName.toLowerCase())) {
+      setMessage('Majstor s tim imenom već postoji.');
+      return;
+    }
+    save([
+      ...mechanics,
+      {
+        id: `mech-${Date.now()}`,
+        name: trimmedName,
+        specialty: specialty.trim() || 'Servis',
+        email: email.trim().toLowerCase(),
+        phone: phone.trim(),
+        active: true,
+      },
+    ]);
+    setName('');
+    setSpecialty('');
+    setEmail('');
+    setPhone('');
+    setMessage(`Majstor ${trimmedName} je dodan.`);
+  };
+
+  const toggleActive = (id: string) => {
+    save(
+      mechanics.map((mechanic) =>
+        mechanic.id === id ? { ...mechanic, active: !mechanic.active } : mechanic
+      )
+    );
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    save(mechanics.filter((mechanic) => mechanic.id !== deleteTarget.id));
+    setMessage(`Majstor ${deleteTarget.name} je obrisan.`);
+    setDeleteTarget(null);
+  };
+
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
       <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
         <div className="flex items-start justify-between">
           <div>
-            <Link href="/" className="text-xs text-primary hover:underline">Dashboard</Link>
+            <Link href="/" className="text-xs text-primary hover:underline">
+              Dashboard
+            </Link>
             <h1 className="text-2xl font-semibold text-foreground mt-2">Majstori</h1>
-            <p className="text-sm text-muted-foreground mt-1">Pregled članova servisnog tima</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Pregled članova servisnog tima ·{' '}
+              {mechanics.filter((mechanic) => mechanic.active).length} aktivnih
+            </p>
           </div>
-          <Link href="/majstori/isplate" className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90">
+          <Link
+            href="/majstori/isplate"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90"
+          >
             Isplate <ArrowRight size={15} />
           </Link>
         </div>
+
+        {isOwner && (
+          <section className="bg-card border border-border rounded-xl shadow-card p-5">
+            <h2 className="font-semibold text-foreground flex items-center gap-2">
+              <Plus size={18} className="text-primary" /> Novi majstor
+            </h2>
+            <form onSubmit={addMechanic} className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-4">
+              <input
+                required
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Ime i prezime"
+                className="px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                value={specialty}
+                onChange={(event) => setSpecialty(event.target.value)}
+                placeholder="Specijalnost"
+                className="px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="Email (opcionalno)"
+                className="px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <input
+                value={phone}
+                onChange={(event) => setPhone(event.target.value)}
+                placeholder="Telefon (opcionalno)"
+                className="px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+              <button
+                type="submit"
+                className="md:col-span-4 justify-self-start inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90"
+              >
+                <Plus size={15} /> Dodaj majstora
+              </button>
+            </form>
+            {message && <p className="text-sm text-emerald-600 mt-3">{message}</p>}
+          </section>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {mechanics.map((mechanic) => (
-            <div key={mechanic.name} className="bg-card border border-border rounded-xl shadow-card p-5">
+            <div
+              key={mechanic.id}
+              className="bg-card border border-border rounded-xl shadow-card p-5"
+            >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
                   <Wrench size={19} className="text-primary" />
                 </div>
-                <span className="text-xs font-medium text-emerald-600 bg-emerald-50 rounded-full px-2 py-1">{mechanic.status}</span>
+                <button
+                  type="button"
+                  disabled={!isOwner}
+                  onClick={() => toggleActive(mechanic.id)}
+                  className={`text-xs font-medium rounded-full px-2 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${mechanic.active ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-muted-foreground bg-muted hover:bg-secondary'}`}
+                  title={isOwner ? 'Promijeni status' : undefined}
+                >
+                  {mechanic.active ? 'Aktivan' : 'Neaktivan'}
+                </button>
               </div>
               <h2 className="text-base font-semibold text-foreground mt-5">{mechanic.name}</h2>
               <p className="text-xs text-muted-foreground mt-1">{mechanic.specialty}</p>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-5">
-                <Users size={14} /> {mechanic.orders} završenih naloga
+              {mechanic.email && (
+                <p className="text-xs text-muted-foreground mt-1">{mechanic.email}</p>
+              )}
+              {mechanic.phone && (
+                <p className="text-xs text-muted-foreground mt-1">{mechanic.phone}</p>
+              )}
+              <div className="flex items-center justify-between mt-5">
+                <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Users size={14} /> {completedByMechanic.get(mechanic.name) ?? 0} završenih naloga
+                </span>
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(mechanic)}
+                    className="p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
+                    aria-label={`Obriši majstora ${mechanic.name}`}
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
         </div>
+
+        {mechanics.length === 0 && (
+          <div className="bg-card border border-border rounded-xl shadow-card p-10 text-center text-sm text-muted-foreground">
+            Nema unesenih majstora. Dodajte prvog majstora iznad.
+          </div>
+        )}
       </div>
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+        title="Obriši majstora"
+        description={`Da li ste sigurni da želite obrisati majstora ${deleteTarget?.name ?? ''}? Postojeći nalozi zadržavaju njegovo ime.`}
+        confirmLabel="Obriši majstora"
+      />
     </AppLayout>
   );
 }

@@ -3,17 +3,31 @@
 import React from 'react';
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { Search, Plus, ChevronDown, ChevronUp, ChevronsUpDown, Edit2, Trash2, Eye, CheckSquare } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Edit2,
+  Trash2,
+  Eye,
+  CheckSquare,
+} from 'lucide-react';
 import StatusBadge, { OrderStatus } from '@/components/ui/StatusBadge';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import WorkOrderModal from './WorkOrderModal';
 import WorkOrderViewModal from './WorkOrderViewModal';
 import CompleteWorkOrderModal from './CompleteWorkOrderModal';
 import { toast } from 'sonner';
-import { WorkOrder, mockWorkOrders } from '@/app/work-order-managment/data/mockWorkOrders';
+import {
+  ORDERS_STORAGE_KEY,
+  WorkOrder,
+  mockWorkOrders,
+} from '@/app/work-order-managment/data/mockWorkOrders';
+import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
-const ORDERS_STORAGE_KEY = 'autoservis-work-orders';
 
 const ALL_STATUSES: OrderStatus[] = [
   'Otvoren',
@@ -31,7 +45,12 @@ function readStoredOrders(): WorkOrder[] {
   if (typeof window === 'undefined') return mockWorkOrders;
   try {
     const stored = window.localStorage.getItem(ORDERS_STORAGE_KEY);
-    return stored ? (JSON.parse(stored) as WorkOrder[]) : mockWorkOrders;
+    if (!stored) return mockWorkOrders;
+    return (JSON.parse(stored) as WorkOrder[]).map((order) => ({
+      ...order,
+      createdBy: order.createdBy ?? '',
+      createdByRole: order.createdByRole ?? 'owner',
+    }));
   } catch {
     return mockWorkOrders;
   }
@@ -57,6 +76,7 @@ export default function WorkOrdersClient() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
   const searchParams = useSearchParams();
+  const { mechanics } = useMechanics();
 
   useEffect(() => {
     setOrders(readStoredOrders());
@@ -85,9 +105,12 @@ export default function WorkOrdersClient() {
     if (order) setViewOrder(order);
   }, [orders, searchParams]);
 
-  const mechanics = useMemo(
-    () => ['Svi', ...Array.from(new Set(orders.map((o) => o.mechanic)))],
-    [orders]
+  const mechanicFilterOptions = useMemo(
+    () => [
+      'Svi',
+      ...Array.from(new Set([...activeMechanicNames(mechanics), ...orders.map((o) => o.mechanic)])),
+    ],
+    [mechanics, orders]
   );
 
   const filtered = useMemo(() => {
@@ -99,7 +122,8 @@ export default function WorkOrdersClient() {
           o.orderNum.toLowerCase().includes(q) ||
           o.clientName.toLowerCase().includes(q) ||
           o.vehicle.toLowerCase().includes(q) ||
-          o.mechanic.toLowerCase().includes(q)
+          o.mechanic.toLowerCase().includes(q) ||
+          (o.createdBy || '').toLowerCase().includes(q)
       );
     }
     if (statusFilter !== 'Svi') {
@@ -156,7 +180,8 @@ export default function WorkOrdersClient() {
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   };
@@ -208,9 +233,7 @@ export default function WorkOrdersClient() {
       setCompletingOrder(order);
       return;
     }
-    setOrders((prev) =>
-      prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o))
-    );
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o)));
     toast.success(`Status ažuriran na "${newStatus}"`);
   };
 
@@ -221,7 +244,8 @@ export default function WorkOrdersClient() {
       const discountPct = part.category === 'oil' ? oilDiscountPct : partsDiscountPct;
       return total + lineTotal * (1 - discountPct / 100);
     }, 0);
-    const serviceProfit = completingOrder.orderTotal - partsPurchaseCost - completingOrder.mechanicPayout;
+    const serviceProfit =
+      completingOrder.orderTotal - partsPurchaseCost - completingOrder.mechanicPayout;
     const updatedOrder: WorkOrder = {
       ...completingOrder,
       status: 'Zatvoren',
@@ -243,7 +267,9 @@ export default function WorkOrdersClient() {
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Radni nalozi</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {filtered.length} naloga · {orders.filter((o) => o.status !== 'Zatvoren' && o.status !== 'Otkazan').length} aktivnih
+            {filtered.length} naloga ·{' '}
+            {orders.filter((o) => o.status !== 'Zatvoren' && o.status !== 'Otkazan').length}{' '}
+            aktivnih
           </p>
         </div>
         <button
@@ -306,7 +332,7 @@ export default function WorkOrdersClient() {
             }}
             className="px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
           >
-            {mechanics.map((m) => (
+            {mechanicFilterOptions.map((m) => (
               <option key={`mech-filter-${m}`} value={m}>
                 {m === 'Svi' ? 'Svi majstori' : m}
               </option>
@@ -350,10 +376,7 @@ export default function WorkOrdersClient() {
                 <th className="px-4 py-3 w-10">
                   <input
                     type="checkbox"
-                    checked={
-                      paginated.length > 0 &&
-                      selectedIds.size === paginated.length
-                    }
+                    checked={paginated.length > 0 && selectedIds.size === paginated.length}
                     onChange={toggleSelectAll}
                     className="rounded border-border accent-primary"
                     aria-label="Odaberi sve"
@@ -365,6 +388,7 @@ export default function WorkOrdersClient() {
                     { key: 'clientName', label: 'Klijent' },
                     { key: 'vehicle', label: 'Vozilo' },
                     { key: 'mechanic', label: 'Majstor' },
+                    { key: 'createdBy', label: 'Kreirao' },
                     { key: 'status', label: 'Status' },
                     { key: 'partsTotal', label: 'Dijelovi' },
                     { key: 'laborTotal', label: 'Rad' },
@@ -391,7 +415,7 @@ export default function WorkOrdersClient() {
             <tbody className="divide-y divide-border">
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="px-4 py-16 text-center">
+                  <td colSpan={13} className="px-4 py-16 text-center">
                     <div className="flex flex-col items-center gap-3">
                       <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
                         <Search size={20} className="text-muted-foreground" />
@@ -447,9 +471,7 @@ export default function WorkOrdersClient() {
                 </option>
               ))}
             </select>
-            <span>
-              od {filtered.length} naloga
-            </span>
+            <span>od {filtered.length} naloga</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -604,11 +626,10 @@ function WorkOrderRow({
         </p>
         <p className="text-xs text-muted-foreground">{order.clientPhone}</p>
       </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">{order.vehicle}</td>
+      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">{order.mechanic}</td>
       <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
-        {order.vehicle}
-      </td>
-      <td className="px-4 py-3 text-sm text-foreground whitespace-nowrap">
-        {order.mechanic}
+        {order.createdBy || '—'}
       </td>
       <td className="px-4 py-3 relative" onClick={(event) => event.stopPropagation()}>
         <button

@@ -1,5 +1,7 @@
 import { OrderStatus } from '@/components/ui/StatusBadge';
 
+export const ORDERS_STORAGE_KEY = 'autoservis-work-orders';
+
 export interface PartLineItem {
   id: string;
   name: string;
@@ -38,6 +40,8 @@ export interface WorkOrder {
   orderTotal: number;
   mechanicPayout: number;
   notes: string;
+  createdBy: string;
+  createdByRole: 'owner' | 'mechanic';
   createdAt: string;
   updatedAt: string;
   supplierPartsDiscountPct?: number;
@@ -60,7 +64,16 @@ function calcOrder(
   return { partsTotal, laborTotal, orderTotal, mechanicPayout };
 }
 
-const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mechanicPayout' | 'vehicle'>[] = [
+const orders: Omit<
+  WorkOrder,
+  | 'partsTotal'
+  | 'laborTotal'
+  | 'orderTotal'
+  | 'mechanicPayout'
+  | 'vehicle'
+  | 'createdBy'
+  | 'createdByRole'
+>[] = [
   {
     id: 'order-001',
     orderNum: 'WO-2026-0089',
@@ -105,7 +118,12 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
       { id: 'part-002-3', name: 'Kit kliznih pina kočionog kliješta', qty: 2, unitCost: 18.5 },
     ],
     laborEntries: [
-      { id: 'labor-002-1', description: 'Zamjena prednjih kočionih pločica i diskova', hours: 2.5, rate: 95 },
+      {
+        id: 'labor-002-1',
+        description: 'Zamjena prednjih kočionih pločica i diskova',
+        hours: 2.5,
+        rate: 95,
+      },
       { id: 'labor-002-2', description: 'Ispiranje kočione tečnosti', hours: 0.5, rate: 85 },
     ],
     discountPct: 0,
@@ -132,7 +150,12 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
     ],
     laborEntries: [
       { id: 'labor-003-1', description: 'Zamjena klinastog remena', hours: 1.5, rate: 95 },
-      { id: 'labor-003-2', description: 'Zamjena zatezača i slobodnog kotura', hours: 1.0, rate: 95 },
+      {
+        id: 'labor-003-2',
+        description: 'Zamjena zatezača i slobodnog kotura',
+        hours: 1.0,
+        rate: 95,
+      },
     ],
     discountPct: 5,
     notes: 'Remen škripio. Sve zamijenjeno. Spreman za preuzimanje.',
@@ -151,9 +174,7 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
     mechanic: 'Mei-Ling Park',
     mechanicPayoutPct: 30,
     status: 'Otvoren',
-    parts: [
-      { id: 'part-004-1', name: 'Filter kabine', qty: 1, unitCost: 22.0 },
-    ],
+    parts: [{ id: 'part-004-1', name: 'Filter kabine', qty: 1, unitCost: 22.0 }],
     laborEntries: [
       { id: 'labor-004-1', description: 'Dijagnostičko skeniranje', hours: 1.0, rate: 95 },
     ],
@@ -278,12 +299,8 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
     mechanic: 'Tomas Reyes',
     mechanicPayoutPct: 32,
     status: 'Otkazan',
-    parts: [
-      { id: 'part-009-1', name: 'Kit filtera DSG mjenjača', qty: 1, unitCost: 78.0 },
-    ],
-    laborEntries: [
-      { id: 'labor-009-1', description: 'Servis DSG tečnosti', hours: 1.5, rate: 95 },
-    ],
+    parts: [{ id: 'part-009-1', name: 'Kit filtera DSG mjenjača', qty: 1, unitCost: 78.0 }],
+    laborEntries: [{ id: 'labor-009-1', description: 'Servis DSG tečnosti', hours: 1.5, rate: 95 }],
     discountPct: 0,
     notes: 'Klijent otkazao — odlučio prodati vozilo.',
     createdAt: '2026-08-01',
@@ -307,7 +324,12 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
       { id: 'part-010-3', name: 'Brtva posude mjenjača', qty: 1, unitCost: 22.0 },
     ],
     laborEntries: [
-      { id: 'labor-010-1', description: 'Ispiranje tečnosti i zamjena filtera mjenjača', hours: 2.0, rate: 95 },
+      {
+        id: 'labor-010-1',
+        description: 'Ispiranje tečnosti i zamjena filtera mjenjača',
+        hours: 2.0,
+        rate: 95,
+      },
     ],
     discountPct: 15,
     notes: 'Vozilo vlasnika. Primjenjen popust za zaposlenika.',
@@ -327,12 +349,22 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
     mechanicPayoutPct: 30,
     status: 'Otvoren',
     parts: [
-      { id: 'part-011-1', name: 'Set brtvi glave motora (lijevo + desno)', qty: 1, unitCost: 420.0 },
+      {
+        id: 'part-011-1',
+        name: 'Set brtvi glave motora (lijevo + desno)',
+        qty: 1,
+        unitCost: 420.0,
+      },
       { id: 'part-011-2', name: 'Vijci glave motora', qty: 1, unitCost: 55.0 },
       { id: 'part-011-3', name: 'Termostat i kućište', qty: 1, unitCost: 48.0 },
     ],
     laborEntries: [
-      { id: 'labor-011-1', description: 'Zamjena brtvi glave motora (obje strane)', hours: 12.0, rate: 115 },
+      {
+        id: 'labor-011-1',
+        description: 'Zamjena brtvi glave motora (obje strane)',
+        hours: 12.0,
+        rate: 115,
+      },
       { id: 'labor-011-2', description: 'Ispiranje sistema hlađenja', hours: 1.0, rate: 85 },
     ],
     discountPct: 0,
@@ -357,9 +389,7 @@ const orders: Omit<WorkOrder, 'partsTotal' | 'laborTotal' | 'orderTotal' | 'mech
       { id: 'part-012-2', name: 'Klinasti remen', qty: 1, unitCost: 38.0 },
       { id: 'part-012-3', name: 'Zaštitnici priključaka baterije', qty: 1, unitCost: 8.5 },
     ],
-    laborEntries: [
-      { id: 'labor-012-1', description: 'Zamjena alternatora', hours: 2.5, rate: 95 },
-    ],
+    laborEntries: [{ id: 'labor-012-1', description: 'Zamjena alternatora', hours: 2.5, rate: 95 }],
     discountPct: 5,
     notes: 'Baterija se praznila preko noći. Alternator bio neispravan.',
     createdAt: '2026-07-28',
@@ -372,6 +402,8 @@ export const mockWorkOrders: WorkOrder[] = orders.map((o) => {
   return {
     ...o,
     vehicle: `${o.vehicleYear} ${o.vehicleMake} ${o.vehicleModel}`,
+    createdBy: 'Armin Mujić',
+    createdByRole: 'owner',
     ...calcs,
   };
 });

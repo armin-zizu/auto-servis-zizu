@@ -4,12 +4,24 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { Plus, Trash2, Calculator, AlertCircle } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
-import { WorkOrder, PartLineItem, LaborEntry } from '@/app/work-order-managment/data/mockWorkOrders';
+import {
+  WorkOrder,
+  PartLineItem,
+  LaborEntry,
+} from '@/app/work-order-managment/data/mockWorkOrders';
 import { OrderStatus } from '@/components/ui/StatusBadge';
+import { mechanicOptions, useMechanics } from '@/lib/mechanics';
+import { defaultSession, readSession } from '@/lib/session';
 
-const MECHANICS = ['Derek Hollis', 'Tomas Reyes', 'Mei-Ling Park', 'Antoine Briggs'];
 const FIXED_MECHANIC_PAYOUT_PCT = 10;
-const STATUSES: OrderStatus[] = ['Otvoren', 'U toku', 'Čeka dijelove', 'Spreman za preuzimanje', 'Zatvoren', 'Otkazan'];
+const STATUSES: OrderStatus[] = [
+  'Otvoren',
+  'U toku',
+  'Čeka dijelove',
+  'Spreman za preuzimanje',
+  'Zatvoren',
+  'Otkazan',
+];
 
 interface FormValues {
   clientName: string;
@@ -36,13 +48,16 @@ interface WorkOrderModalProps {
 
 let orderCounter = 90;
 
-export default function WorkOrderModal({
-  open,
-  onClose,
-  order,
-  onSave,
-}: WorkOrderModalProps) {
+export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrderModalProps) {
   const [saving, setSaving] = useState(false);
+  const { mechanics } = useMechanics();
+  const [session, setSession] = useState(defaultSession);
+  const availableMechanics = mechanicOptions(mechanics, order?.mechanic);
+  const isMechanicUser = session.userRole === 'mechanic';
+  const assignableMechanics = isMechanicUser
+    ? Array.from(new Set([session.userName, ...(order ? [order.mechanic] : [])]))
+    : availableMechanics;
+  const defaultMechanicName = isMechanicUser ? session.userName : (availableMechanics[0] ?? '');
 
   const {
     register,
@@ -60,7 +75,7 @@ export default function WorkOrderModal({
       vehicleMake: '',
       vehicleModel: '',
       vehicleVin: '',
-      mechanic: MECHANICS[0],
+      mechanic: '',
       mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
       status: 'Otvoren',
       discountPct: 0,
@@ -84,6 +99,7 @@ export default function WorkOrderModal({
 
   useEffect(() => {
     if (open) {
+      setSession(readSession());
       if (order) {
         reset({
           clientName: order.clientName,
@@ -108,7 +124,7 @@ export default function WorkOrderModal({
           vehicleMake: '',
           vehicleModel: '',
           vehicleVin: '',
-          mechanic: MECHANICS[0],
+          mechanic: defaultMechanicName,
           mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
           status: 'Otvoren',
           discountPct: 0,
@@ -118,7 +134,7 @@ export default function WorkOrderModal({
         });
       }
     }
-  }, [open, order, reset]);
+  }, [open, order, reset, defaultMechanicName]);
 
   const watchedParts = watch('parts');
   const watchedLabor = watch('laborEntries');
@@ -164,6 +180,8 @@ export default function WorkOrderModal({
       orderTotal,
       mechanicPayout,
       notes: data.notes,
+      createdBy: order?.createdBy ?? session.userName,
+      createdByRole: order?.createdByRole ?? session.userRole,
       createdAt: order?.createdAt ?? new Date().toISOString().split('T')[0],
       updatedAt: new Date().toISOString().split('T')[0],
     };
@@ -348,12 +366,23 @@ export default function WorkOrderModal({
                 {...register('mechanic', { required: 'Majstor je obavezan' })}
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
               >
-                {MECHANICS.map((m) => (
+                {assignableMechanics.length === 0 && (
+                  <option value="">Nema aktivnih majstora</option>
+                )}
+                {assignableMechanics.map((m) => (
                   <option key={`opt-mech-${m}`} value={m}>
                     {m}
                   </option>
                 ))}
               </select>
+              {errors.mechanic && (
+                <p className="text-xs text-red-500 mt-1">{errors.mechanic.message}</p>
+              )}
+              {!isMechanicUser && assignableMechanics.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Dodajte aktivnog majstora na stranici Majstori.
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
@@ -477,25 +506,55 @@ export default function WorkOrderModal({
                             onChange={(event) => {
                               const files = Array.from(event.target.files || []);
                               if (!files.length) return;
-                              Promise.all(files.map((file) => new Promise<string>((resolve, reject) => {
-                                const reader = new FileReader();
-                                reader.onload = () => resolve(String(reader.result));
-                                reader.onerror = reject;
-                                reader.readAsDataURL(file);
-                              }))).then((newImages) => {
-                                const currentImages = watchedParts[idx]?.images || (watchedParts[idx]?.image ? [watchedParts[idx].image] : []);
-                                setValue(`parts.${idx}.images`, [...currentImages, ...newImages], { shouldDirty: true });
+                              Promise.all(
+                                files.map(
+                                  (file) =>
+                                    new Promise<string>((resolve, reject) => {
+                                      const reader = new FileReader();
+                                      reader.onload = () => resolve(String(reader.result));
+                                      reader.onerror = reject;
+                                      reader.readAsDataURL(file);
+                                    })
+                                )
+                              ).then((newImages) => {
+                                const currentImages =
+                                  watchedParts[idx]?.images ||
+                                  (watchedParts[idx]?.image ? [watchedParts[idx].image] : []);
+                                setValue(`parts.${idx}.images`, [...currentImages, ...newImages], {
+                                  shouldDirty: true,
+                                });
                               });
                             }}
                           />
                         </label>
-                        {(watchedParts[idx]?.images || (watchedParts[idx]?.image ? [watchedParts[idx].image] : [])).map((image, imageIndex) => (
-                          <span key={`${field.id}-image-${imageIndex}`} className="relative inline-block mt-1 mr-1">
-                            <img src={image} alt={`Slika dijela ${watchedParts[idx]?.name || idx + 1} ${imageIndex + 1}`} className="h-10 w-10 rounded object-cover border border-border" />
-                            <button type="button" onClick={() => {
-                              const images = watchedParts[idx]?.images || [];
-                              setValue(`parts.${idx}.images`, images.filter((_, currentIndex) => currentIndex !== imageIndex), { shouldDirty: true });
-                            }} className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-red-600 text-white text-[10px] leading-none" aria-label="Ukloni sliku">x</button>
+                        {(
+                          watchedParts[idx]?.images ||
+                          (watchedParts[idx]?.image ? [watchedParts[idx].image] : [])
+                        ).map((image, imageIndex) => (
+                          <span
+                            key={`${field.id}-image-${imageIndex}`}
+                            className="relative inline-block mt-1 mr-1"
+                          >
+                            <img
+                              src={image}
+                              alt={`Slika dijela ${watchedParts[idx]?.name || idx + 1} ${imageIndex + 1}`}
+                              className="h-10 w-10 rounded object-cover border border-border"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const images = watchedParts[idx]?.images || [];
+                                setValue(
+                                  `parts.${idx}.images`,
+                                  images.filter((_, currentIndex) => currentIndex !== imageIndex),
+                                  { shouldDirty: true }
+                                );
+                              }}
+                              className="absolute -right-1 -top-1 h-4 w-4 rounded-full bg-red-600 text-white text-[10px] leading-none"
+                              aria-label="Ukloni sliku"
+                            >
+                              x
+                            </button>
                           </span>
                         ))}
                         {errors.parts?.[idx]?.name && (
@@ -575,7 +634,10 @@ export default function WorkOrderModal({
                   </tr>
                 )}
                 <tr className="bg-muted/50 border-t-2 border-border">
-                  <td colSpan={3} className="px-3 py-2 text-xs font-semibold text-foreground text-right">
+                  <td
+                    colSpan={3}
+                    className="px-3 py-2 text-xs font-semibold text-foreground text-right"
+                  >
                     Ukupno dijelovi (nakon popusta)
                   </td>
                   <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-foreground">
@@ -708,7 +770,10 @@ export default function WorkOrderModal({
               </tbody>
               <tfoot>
                 <tr className="bg-muted/50 border-t-2 border-border">
-                  <td colSpan={3} className="px-3 py-2 text-xs font-semibold text-foreground text-right">
+                  <td
+                    colSpan={3}
+                    className="px-3 py-2 text-xs font-semibold text-foreground text-right"
+                  >
                     Ukupno rad
                   </td>
                   <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-foreground">
