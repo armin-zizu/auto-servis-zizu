@@ -80,7 +80,9 @@ export function useFinanceSummary(): FinanceSummary {
       payoutsTotal: sum(paymentRecords),
       unpaidPayouts: sum(paymentRecords.filter((record) => !record.paid)),
       mechanicEarnings,
-      operatingProfit: revenue - partsCost - mechanicEarnings,
+      // Gross profit before mechanic payouts: charged labor plus the margin on
+      // parts. Payout obligations are shown separately on the dashboard.
+      operatingProfit: revenue - partsCost,
       closedOrders: closedOrders.length,
     };
   }, [version]);

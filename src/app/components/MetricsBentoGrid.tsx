@@ -77,7 +77,7 @@ const metrics: MetricCardData[] = [
   },
   {
     id: 'labor-revenue',
-    label: 'Prihod od rada MTD',
+    label: 'Naplata rada MTD',
     value: '15,468 KM',
     subValue: '62.4% od prihoda',
     trend: 5.9,
