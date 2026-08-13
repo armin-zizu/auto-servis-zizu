@@ -458,11 +458,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             <span className="text-sm text-muted-foreground">%</span>
           </div>
 
+          <p className="sm:hidden mb-2 text-xs text-muted-foreground">
+            Prevucite tabelu lijevo-desno da unesete količinu i cijenu.
+          </p>
           <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[680px] sm:min-w-full text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-[280px]">
                     Naziv dijela / Opis
                   </th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-20">
@@ -499,7 +502,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           {...register(`parts.${idx}.name`, {
                             required: 'Naziv dijela je obavezan',
                           })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                          className="w-full min-w-[250px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                         />
                         <label className="inline-flex items-center gap-1.5 mt-1 text-xs text-primary cursor-pointer">
                           Dodaj sliku dijela
@@ -684,11 +687,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </button>
           </div>
 
+          <p className="sm:hidden mb-2 text-xs text-muted-foreground">
+            Prevucite tabelu lijevo-desno da unesete sate i cijenu.
+          </p>
           <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[650px] sm:min-w-full text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-[260px]">
                     Opis usluge
                   </th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-24">
@@ -717,7 +723,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           {...register(`laborEntries.${idx}.description`, {
                             required: 'Opis je obavezan',
                           })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                          className="w-full min-w-[240px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                         />
                         {errors.laborEntries?.[idx]?.description && (
                           <p className="text-xs text-red-500 mt-0.5">

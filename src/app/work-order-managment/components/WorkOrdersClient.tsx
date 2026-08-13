@@ -56,7 +56,7 @@ function readStoredOrders(): WorkOrder[] {
 }
 
 export default function WorkOrdersClient() {
-  const [orders, setOrders] = useState<WorkOrder[]>(mockWorkOrders);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [storageLoaded, setStorageLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'Svi'>('Svi');
@@ -78,19 +78,24 @@ export default function WorkOrdersClient() {
   const { mechanics } = useMechanics();
 
 useEffect(() => {
-    setOrders(readStoredOrders());
-    setStorageLoaded(true);
-    // Pull latest from shared storage on mount.
-    void import('@/lib/syncStore').then(({ pull }) => {
-      pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
-        if (remote) setOrders(normalizeOrders(remote));
-      });
+    let active = true;
+    // Never push defaults before the shared copy has been read. Otherwise a
+    // new phone can overwrite saved orders with its empty/demo state.
+    void import('@/lib/syncStore').then(async ({ pull }) => {
+      const cached = normalizeOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+      const remote = await pull<WorkOrder[]>(ORDERS_STORAGE_KEY);
+      if (!active) return;
+      setOrders(normalizeOrders(remote ?? cached));
+      setStorageLoaded(true);
     });
     // Subscribe to realtime changes from other devices.
     const unsub = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => {
       setOrders(readStoredOrders());
     });
-    return () => unsub();
+    return () => {
+      active = false;
+      unsub();
+    };
   }, []);
 
 useEffect(() => {

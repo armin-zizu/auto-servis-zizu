@@ -76,25 +76,25 @@ export default function MechanicPayoutsPage() {
   const bonusPeriod = useMemo(() => getWeeklyBonusPeriod(), []);
 
 useEffect(() => {
+    let active = true;
     const session = readSession();
     const mechanicSession = session?.userRole === 'mechanic';
     setIsMechanic(mechanicSession);
     setCurrentUserName(session?.userName || '');
     if (mechanicSession && session?.userName) setSalaryName(session.userName);
-    setPayouts(withoutDemoPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts)));
-    setSalaries(readStored(SALARIES_STORAGE_KEY, []));
-    setWeeklyBonuses(readStored(WEEKLY_BONUSES_STORAGE_KEY, []));
-    setStorageLoaded(true);
-    // Pull latest from shared storage on mount.
+    // Read the shared values before enabling persistence. This prevents an
+    // empty local mobile cache from overwriting existing payouts.
     void import('@/lib/syncStore').then(({ pull }) => {
-      void pull<Payout[]>(PAYOUTS_STORAGE_KEY).then((remote) => {
-        if (remote) setPayouts(withoutDemoPayouts(remote));
-      });
-      void pull<Salary[]>(SALARIES_STORAGE_KEY).then((remote) => {
-        if (remote) setSalaries(remote);
-      });
-      void pull<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY).then((remote) => {
-        if (remote) setWeeklyBonuses(remote);
+      void Promise.all([
+        pull<Payout[]>(PAYOUTS_STORAGE_KEY),
+        pull<Salary[]>(SALARIES_STORAGE_KEY),
+        pull<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY),
+      ]).then(([remotePayouts, remoteSalaries, remoteBonuses]) => {
+        if (!active) return;
+        setPayouts(withoutDemoPayouts(remotePayouts ?? readStored(PAYOUTS_STORAGE_KEY, initialPayouts)));
+        setSalaries(remoteSalaries ?? readStored(SALARIES_STORAGE_KEY, []));
+        setWeeklyBonuses(remoteBonuses ?? readStored(WEEKLY_BONUSES_STORAGE_KEY, []));
+        setStorageLoaded(true);
       });
     });
     // Subscribe to realtime changes from other devices.
@@ -108,6 +108,7 @@ useEffect(() => {
       setWeeklyBonuses(readStored(WEEKLY_BONUSES_STORAGE_KEY, []));
     });
     return () => {
+      active = false;
       unsubPayouts();
       unsubSalaries();
       unsubBonuses();

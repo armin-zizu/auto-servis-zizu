@@ -56,7 +56,7 @@ export default function Modal({
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/40 fade-in"
       onClick={(e) => {
         if (e.target === overlayRef.current) onClose();
       }}
@@ -65,7 +65,7 @@ export default function Modal({
       aria-label={title}
     >
       <div
-        className={`relative w-full ${sizeClasses[size]} max-w-[calc(100vw-1.5rem)] bg-card rounded-xl shadow-modal scale-in flex flex-col max-h-[90vh]`}
+        className={`relative w-full ${sizeClasses[size]} max-w-[calc(100vw-1rem)] sm:max-w-[calc(100vw-1.5rem)] bg-card rounded-xl shadow-modal scale-in flex flex-col max-h-[92vh] sm:max-h-[90vh]`}
       >
         {/* Header */}
         <div className="flex items-start justify-between gap-3 px-4 sm:px-6 py-4 sm:py-5 border-b border-border shrink-0">
@@ -85,7 +85,7 @@ export default function Modal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 sm:py-5">
+        <div className="flex-1 overflow-y-auto scrollbar-thin px-3 sm:px-6 py-4 sm:py-5">
           {children}
         </div>
 
