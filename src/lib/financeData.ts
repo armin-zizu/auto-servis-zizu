@@ -15,6 +15,8 @@ export interface FinanceSummary {
   partsCost: number;
   payoutsTotal: number;
   unpaidPayouts: number;
+  mechanicEarnings: number;
+  operatingProfit: number;
   closedOrders: number;
 }
 
@@ -60,13 +62,25 @@ export function useFinanceSummary(): FinanceSummary {
     const relevantBonuses = bonuses.filter((bonus) => isInCurrentMonth(bonus.createdAt));
     const paymentRecords = [...payouts, ...relevantSalaries, ...relevantBonuses];
 
+    const mechanicEarnings = closedOrders.reduce(
+      (total, order) => total + (Number(order.mechanicPayout) || Number(order.laborTotal) * 0.1 || 0),
+      0
+    );
+    const revenue = closedOrders.reduce((total, order) => total + (Number(order.orderTotal) || 0), 0);
+    const partsCost = closedOrders.reduce(
+      (total, order) => total + (Number(order.partsPurchaseCost ?? order.partsTotal) || 0),
+      0
+    );
+
     return {
-      revenue: closedOrders.reduce((total, order) => total + (Number(order.orderTotal) || 0), 0),
+      revenue,
       laborRevenue: closedOrders.reduce((total, order) => total + (Number(order.laborTotal) || 0), 0),
       partsRevenue: closedOrders.reduce((total, order) => total + (Number(order.partsTotal) || 0), 0),
-      partsCost: closedOrders.reduce((total, order) => total + (Number(order.partsPurchaseCost ?? order.partsTotal) || 0), 0),
+      partsCost,
       payoutsTotal: sum(paymentRecords),
       unpaidPayouts: sum(paymentRecords.filter((record) => !record.paid)),
+      mechanicEarnings,
+      operatingProfit: revenue - partsCost - mechanicEarnings,
       closedOrders: closedOrders.length,
     };
   }, [version]);

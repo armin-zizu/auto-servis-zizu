@@ -2,9 +2,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { DollarSign } from 'lucide-react';
+import { BellRing, DollarSign } from 'lucide-react';
 import { pull, readCache, subscribe, SYNC_EVENT } from '@/lib/syncStore';
-import { formatBonusPeriod, WeeklyBonus, WEEKLY_BONUSES_STORAGE_KEY } from '@/lib/weeklyBonuses';
+import { calculateWeeklyBonuses, formatBonusPeriod, getWeeklyBonusPeriod, WeeklyBonus, WEEKLY_BONUSES_STORAGE_KEY } from '@/lib/weeklyBonuses';
+import { ORDERS_STORAGE_KEY, WorkOrder } from '@/app/work-order-managment/data/mockWorkOrders';
 
 interface Payout {
   id: string;
@@ -49,6 +50,7 @@ export default function MechanicPayoutList() {
   const [payouts, setPayouts] = useState<Payout[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
   const [weeklyBonuses, setWeeklyBonuses] = useState<WeeklyBonus[]>([]);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [session, setSession] = useState<{ userRole?: string; userName?: string } | null>(null);
 
   useEffect(() => {
@@ -61,20 +63,24 @@ export default function MechanicPayoutList() {
       );
       setSalaries(readCache<Salary[]>('autoservis-salaries', []));
       setWeeklyBonuses(readCache<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, []));
+      setOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
     };
     refresh();
     const unsubscribePayouts = subscribe<Payout[]>('autoservis-payouts', refresh);
     const unsubscribeSalaries = subscribe<Salary[]>('autoservis-salaries', refresh);
     const unsubscribeBonuses = subscribe<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, refresh);
+    const unsubscribeOrders = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, refresh);
     void pull<Payout[]>('autoservis-payouts').then(refresh);
     void pull<Salary[]>('autoservis-salaries').then(refresh);
     void pull<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY).then(refresh);
+    void pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then(refresh);
     window.addEventListener(SYNC_EVENT, refresh);
     window.addEventListener('storage', refresh);
     return () => {
       unsubscribePayouts();
       unsubscribeSalaries();
       unsubscribeBonuses();
+      unsubscribeOrders();
       window.removeEventListener(SYNC_EVENT, refresh);
       window.removeEventListener('storage', refresh);
     };
@@ -110,6 +116,16 @@ export default function MechanicPayoutList() {
   }, [payouts, salaries, weeklyBonuses, session]);
 
   const totalDue = payments.filter((payment) => !payment.paid).reduce((sum, payment) => sum + payment.amount, 0);
+  const fridayBonus = useMemo(() => {
+    if (new Date().getDay() !== 5) return null;
+    const period = getWeeklyBonusPeriod();
+    const existing = weeklyBonuses.filter((bonus) => bonus.periodKey === period.key);
+    const calculated = existing.length
+      ? existing
+      : calculateWeeklyBonuses(orders, [...new Set(orders.map((order) => order.mechanic).filter(Boolean))], period);
+    const unpaid = calculated.filter((bonus) => !bonus.paid);
+    return unpaid.length ? { amount: unpaid.reduce((sum, bonus) => sum + bonus.amount, 0), mechanics: new Set(unpaid.map((bonus) => bonus.mechanic)).size } : null;
+  }, [orders, weeklyBonuses]);
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-card flex flex-col h-full">
@@ -123,6 +139,13 @@ export default function MechanicPayoutList() {
           <p className="text-lg font-bold text-amber-600 tabular-nums">{totalDue.toLocaleString()} KM</p>
         </div>
       </div>
+
+      {fridayBonus && (
+        <div className="mx-4 mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900">
+          <p className="flex items-center gap-2 text-xs font-semibold"><BellRing size={14} /> Petak je — obračun 10% rada je spreman.</p>
+          <p className="mt-1 text-xs">{fridayBonus.mechanics} majstora · {fridayBonus.amount.toLocaleString()} KM za isplatu.</p>
+        </div>
+      )}
 
       <div className="flex-1 divide-y divide-border overflow-y-auto scrollbar-thin">
         {payments.map((payment) => (

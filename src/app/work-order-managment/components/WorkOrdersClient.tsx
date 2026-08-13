@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -57,7 +57,6 @@ function readStoredOrders(): WorkOrder[] {
 
 export default function WorkOrdersClient() {
   const [orders, setOrders] = useState<WorkOrder[]>([]);
-  const [storageLoaded, setStorageLoaded] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'Svi'>('Svi');
   const [mechanicFilter, setMechanicFilter] = useState<string>('Svi');
@@ -86,7 +85,6 @@ useEffect(() => {
       const remote = await pull<WorkOrder[]>(ORDERS_STORAGE_KEY);
       if (!active) return;
       setOrders(normalizeOrders(remote ?? cached));
-      setStorageLoaded(true);
     });
     // Subscribe to realtime changes from other devices.
     const unsub = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => {
@@ -98,12 +96,13 @@ useEffect(() => {
     };
   }, []);
 
-useEffect(() => {
-    if (!storageLoaded) return;
-    writeCache(ORDERS_STORAGE_KEY, orders);
-    // Push to shared storage so other devices see it.
-    void push(ORDERS_STORAGE_KEY, orders);
-  }, [orders, storageLoaded]);
+  // A refresh must only read data. Persist exclusively from a deliberate user
+  // action below; otherwise an empty/stale render can overwrite the shared
+  // list while another device is loading it.
+  const persistOrders = useCallback((next: WorkOrder[]) => {
+    writeCache(ORDERS_STORAGE_KEY, next);
+    void push(ORDERS_STORAGE_KEY, next);
+  }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
@@ -212,7 +211,11 @@ useEffect(() => {
     if (!deleteId) return;
     setDeleteLoading(true);
     await new Promise((r) => setTimeout(r, 700));
-    setOrders((prev) => prev.filter((o) => o.id !== deleteId));
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== deleteId);
+      persistOrders(next);
+      return next;
+    });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.delete(deleteId);
@@ -224,17 +227,29 @@ useEffect(() => {
   };
 
   const handleBulkDelete = async () => {
-    setOrders((prev) => prev.filter((o) => !selectedIds.has(o.id)));
+    setOrders((prev) => {
+      const next = prev.filter((o) => !selectedIds.has(o.id));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`${selectedIds.size} naloga obrisano`);
     setSelectedIds(new Set());
   };
 
   const handleSaveOrder = (order: WorkOrder) => {
     if (orders.find((o) => o.id === order.id)) {
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)));
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === order.id ? order : o));
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} ažuriran`);
     } else {
-      setOrders((prev) => [order, ...prev]);
+      setOrders((prev) => {
+        const next = [order, ...prev];
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} kreiran`);
     }
     setCreateOpen(false);
@@ -247,7 +262,11 @@ useEffect(() => {
       setCompletingOrder(order);
       return;
     }
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o)));
+    setOrders((prev) => {
+      const next = prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`Status ažuriran na "${newStatus}"`);
   };
 
@@ -269,7 +288,11 @@ useEffect(() => {
       serviceProfit,
       updatedAt: new Date().toISOString().split('T')[0],
     };
-    setOrders((prev) => prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)));
+    setOrders((prev) => {
+      const next = prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
+      persistOrders(next);
+      return next;
+    });
     setCompletingOrder(null);
     toast.success(`Nalog ${updatedOrder.orderNum} završen i obračunat`);
   };
