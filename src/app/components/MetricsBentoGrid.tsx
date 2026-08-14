@@ -106,17 +106,6 @@ const metrics: MetricCardData[] = [
     variant: 'alert',
     href: '/finansije?section=isplate',
   },
-  {
-    id: 'avg-order-value',
-    label: 'Prosječna vrijednost naloga',
-    value: '412 KM',
-    subValue: 'po zatvorenom nalogu',
-    trend: 3.2,
-    trendLabel: 'vs prošli mjesec',
-    icon: <Zap size={22} />,
-    variant: 'default',
-    href: '/work-order-managment',
-  },
 ];
 
 interface DashboardOrder {
@@ -194,7 +183,6 @@ const allOrders = (storedOrders || []) as DashboardOrder[];
         variant: unpaid > 0 ? 'alert' : 'positive',
         icon: unpaid > 0 ? <AlertCircle size={22} /> : <CheckCircle2 size={22} />,
       },
-      'avg-order-value': { value: formatKm(closedOrders.length ? revenue / closedOrders.length : 0), subValue: 'po zatvorenom nalogu' },
     } as Record<string, Partial<MetricCardData>>;
   } catch {
     return {};
