@@ -80,9 +80,9 @@ export function useFinanceSummary(): FinanceSummary {
       payoutsTotal: sum(paymentRecords),
       unpaidPayouts: sum(paymentRecords.filter((record) => !record.paid)),
       mechanicEarnings,
-      // Gross profit before mechanic payouts: charged labor plus the margin on
-      // parts. Payout obligations are shown separately on the dashboard.
-      operatingProfit: revenue - partsCost,
+      // Net profit: the parts margin plus charged labor after the mechanic's
+      // 10% share. Parts procurement stays separate from mechanic payouts.
+      operatingProfit: revenue - partsCost - mechanicEarnings,
       closedOrders: closedOrders.length,
     };
   }, [version]);

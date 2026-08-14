@@ -54,6 +54,15 @@ const metrics: MetricCardData[] = [
     href: '/finansije/prihodi?period=mtd',
   },
   {
+    id: 'profit-mtd',
+    label: 'Dobit MTD',
+    value: '15,468 KM',
+    subValue: 'Nakon nabavne cijene dijelova',
+    icon: <TrendingUp size={22} />,
+    variant: 'positive',
+    href: '/finansije',
+  },
+  {
     id: 'closed-today',
     label: 'Zatvoreno danas',
     value: '6',
@@ -116,6 +125,7 @@ interface DashboardOrder {
   partsTotal: number;
   laborTotal: number;
   orderTotal: number;
+  partsPurchaseCost?: number;
 }
 
 interface DashboardPayout {
@@ -156,6 +166,12 @@ const allOrders = (storedOrders || []) as DashboardOrder[];
     const revenue = orders.reduce((sum, order) => sum + Number(order.orderTotal || 0), 0);
     const parts = orders.reduce((sum, order) => sum + Number(order.partsTotal || 0), 0);
     const labor = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0), 0);
+    const mechanicShare = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0) * 0.1, 0);
+    const partsPurchaseCost = orders.reduce(
+      (sum, order) => sum + Number(order.partsPurchaseCost ?? order.partsTotal ?? 0),
+      0
+    );
+    const profit = revenue - partsPurchaseCost - mechanicShare;
     const unpaid = payouts.filter((payout) => !payout.paid).reduce((sum, payout) => sum + Number(payout.amount || 0), 0)
       + salaries.filter((salary) => !salary.paid).reduce((sum, salary) => sum + Number(salary.amount || 0), 0)
       + bonuses.filter((bonus) => !bonus.paid).reduce((sum, bonus) => sum + Number(bonus.amount || 0), 0);
@@ -165,9 +181,10 @@ const allOrders = (storedOrders || []) as DashboardOrder[];
     return {
       'open-orders': { value: String(activeOrders.length), subValue: `${activeOrders.filter((order) => order.status === 'Čeka dijelove').length} čekaju dijelove` },
       'revenue-mtd': { value: formatKm(revenue), subValue: 'Sačuvani radni nalozi' },
+      'profit-mtd': { value: formatKm(profit), subValue: 'Nakon dijelova i 10% za majstore' },
       'closed-today': { value: String(closedOrders.length), subValue: 'zatvorenih naloga' },
       'parts-cost-mtd': { value: formatKm(parts), subValue: revenue ? `${((parts / revenue) * 100).toFixed(1)}% od prihoda` : '0% od prihoda' },
-      'labor-revenue': { value: formatKm(labor), subValue: revenuePercent },
+      'labor-revenue': { value: formatKm(labor - mechanicShare), subValue: 'Nakon 10% za majstore' },
       'mechanic-payouts': {
         value: formatKm(unpaid),
         subValue: unpaid > 0
