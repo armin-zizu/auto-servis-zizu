@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { ArrowRight, Plus, Trash2, Users, Wrench } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import ConfirmModal from '@/components/ui/ConfirmModal';
+import Modal from '@/components/ui/Modal';
+import { useRouter } from 'next/navigation';
 import { Mechanic, useMechanics } from '@/lib/mechanics';
 import {
   ORDERS_STORAGE_KEY,
@@ -40,6 +42,8 @@ export default function MechanicsPage() {
   const [phone, setPhone] = useState('');
   const [message, setMessage] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<Mechanic | null>(null);
+  const [selectedMechanic, setSelectedMechanic] = useState<Mechanic | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const session = readSession();
@@ -61,6 +65,12 @@ export default function MechanicsPage() {
       .forEach((order) => counts.set(order.mechanic, (counts.get(order.mechanic) ?? 0) + 1));
     return counts;
   }, [orders]);
+
+  const mechanicOrders = useMemo(
+    () =>
+      selectedMechanic ? orders.filter((order) => order.mechanic === selectedMechanic.name) : [],
+    [orders, selectedMechanic]
+  );
 
   const addMechanic = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -170,9 +180,11 @@ export default function MechanicsPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {mechanics.map((mechanic) => (
-            <div
+            <button
+              type="button"
               key={mechanic.id}
-              className="bg-card border border-border rounded-xl shadow-card p-5"
+              onClick={() => setSelectedMechanic(mechanic)}
+              className="bg-card border border-border rounded-xl shadow-card p-5 text-left hover:bg-muted/30 transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <div className="flex items-center justify-between">
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
@@ -181,7 +193,10 @@ export default function MechanicsPage() {
                 <button
                   type="button"
                   disabled={!isOwner}
-                  onClick={() => toggleActive(mechanic.id)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggleActive(mechanic.id);
+                  }}
                   className={`text-xs font-medium rounded-full px-2 py-1 transition-colors disabled:cursor-not-allowed disabled:opacity-70 ${mechanic.active ? 'text-emerald-600 bg-emerald-50 hover:bg-emerald-100' : 'text-muted-foreground bg-muted hover:bg-secondary'}`}
                   title={isOwner ? 'Promijeni status' : undefined}
                 >
@@ -203,7 +218,10 @@ export default function MechanicsPage() {
                 {isOwner && (
                   <button
                     type="button"
-                    onClick={() => setDeleteTarget(mechanic)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setDeleteTarget(mechanic);
+                    }}
                     className="p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 transition-colors"
                     aria-label={`Obriši majstora ${mechanic.name}`}
                   >
@@ -211,7 +229,7 @@ export default function MechanicsPage() {
                   </button>
                 )}
               </div>
-            </div>
+            </button>
           ))}
         </div>
 
@@ -221,6 +239,50 @@ export default function MechanicsPage() {
           </div>
         )}
       </div>
+
+      <Modal
+        open={selectedMechanic !== null}
+        onClose={() => setSelectedMechanic(null)}
+        title={selectedMechanic?.name || 'Majstor'}
+        subtitle={
+          selectedMechanic
+            ? `${mechanicOrders.length} radnih naloga · ${mechanicOrders.filter((o) => o.status === 'Zatvoren').length} završenih`
+            : undefined
+        }
+        size="xl"
+      >
+        <div className="space-y-3">
+          {mechanicOrders.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              Ovaj majstor još nema radnih naloga.
+            </p>
+          ) : (
+            mechanicOrders.map((order) => (
+              <button
+                type="button"
+                key={order.id}
+                onClick={() =>
+                  router.push(`/work-order-managment?order=${encodeURIComponent(order.id)}`)
+                }
+                className="w-full text-left p-4 bg-muted/30 border border-border rounded-lg flex items-center justify-between gap-4 hover:bg-muted transition-colors cursor-pointer"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-primary">{order.orderNum}</p>
+                  <p className="text-sm text-foreground mt-1">
+                    {order.clientName} · {order.vehicle}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {order.createdAt} · {order.status}
+                  </p>
+                </div>
+                <p className="text-sm font-bold text-foreground tabular-nums">
+                  {(Number(order.orderTotal) || 0).toFixed(2)} KM
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+      </Modal>
 
       <ConfirmModal
         open={!!deleteTarget}

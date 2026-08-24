@@ -64,7 +64,7 @@ const metrics: MetricCardData[] = [
   },
   {
     id: 'closed-today',
-    label: 'Zatvoreno danas',
+    label: 'Zatvoreno MTD',
     value: '6',
     subValue: 'naloga završeno',
     trend: -1,
