@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, DollarSign, Package, TrendingUp, Users, Wrench } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
+import FinancePeriodPicker from '@/app/components/FinancePeriodPicker';
 import FinanceTrendChart from '@/app/components/FinanceTrendChart';
 import { useFinanceSummary, PeriodFilter } from '@/lib/financeData';
 
@@ -11,15 +12,18 @@ const formatKm = (value: number) =>
   `${value.toLocaleString('bs-BA', { maximumFractionDigits: 2 })} KM`;
 
 export default function FinancePage() {
-  const finance = useFinanceSummary();
-  const period: PeriodFilter = { mode: 'month', month: new Date().toISOString().slice(0, 7) };
+  const [period, setPeriod] = useState<PeriodFilter>({
+    mode: 'month',
+    month: new Date().toISOString().slice(0, 7),
+  });
+  const finance = useFinanceSummary(period);
 
   const sections = [
     {
       href: '/finansije/prihodi',
       label: 'Prihodi',
       value: formatKm(finance.revenue),
-      description: `${finance.closedOrders} zatvorenih naloga ovaj mjesec`,
+      description: `${finance.closedOrders} zatvorenih naloga`,
       icon: DollarSign,
       className: 'bg-emerald-50 border-emerald-200 text-emerald-700',
     },
@@ -42,8 +46,8 @@ export default function FinancePage() {
     {
       href: '/majstori/isplate',
       label: 'Isplate majstorima',
-      value: formatKm(finance.unpaidPayouts),
-      description: 'Neisplaćene obaveze ovog mjeseca',
+      value: formatKm(finance.mechanicEarnings),
+      description: 'Zarada majstora u periodu',
       icon: Users,
       className: 'bg-blue-50 border-blue-200 text-blue-700',
     },
@@ -51,11 +55,16 @@ export default function FinancePage() {
       href: '/finansije/troskovi',
       label: 'Dobit',
       value: formatKm(finance.operatingProfit),
-      description: 'Nakon dijelova i 10% za majstore',
+      description: 'Nakon dijelova i isplata majstorima',
       icon: TrendingUp,
       className: 'bg-violet-50 border-violet-200 text-violet-700',
     },
   ];
+
+  const periodLabel =
+    period.mode === 'range'
+      ? `${period.from || '...'} — ${period.to || '...'}`
+      : `${period.month || ''} (MTD)`.trim();
 
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
@@ -68,6 +77,13 @@ export default function FinancePage() {
           <p className="text-sm text-muted-foreground mt-1">
             Podaci se računaju iz zatvorenih naloga i evidentiranih isplata.
           </p>
+        </div>
+
+        <FinancePeriodPicker period={period} onChange={setPeriod} />
+
+        <div className="flex items-center justify-between gap-3 px-1">
+          <h2 className="font-semibold text-foreground">Pregled po danima</h2>
+          <span className="text-xs text-muted-foreground">{periodLabel}</span>
         </div>
 
         <FinanceTrendChart period={period} />
