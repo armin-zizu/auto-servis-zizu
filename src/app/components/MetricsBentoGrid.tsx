@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { readCache, SYNC_EVENT } from '@/lib/syncStore';
+import { WEEKLY_BONUSES_STORAGE_KEY } from '@/lib/weeklyBonuses';
 import {
   ClipboardList,
   CheckCircle2,
@@ -53,8 +54,17 @@ const metrics: MetricCardData[] = [
     href: '/finansije/prihodi?period=mtd',
   },
   {
+    id: 'profit-mtd',
+    label: 'Dobit MTD',
+    value: '15,468 KM',
+    subValue: 'Nakon nabavne cijene dijelova',
+    icon: <TrendingUp size={22} />,
+    variant: 'positive',
+    href: '/finansije',
+  },
+  {
     id: 'closed-today',
-    label: 'Zatvoreno danas',
+    label: 'Zatvoreno MTD',
     value: '6',
     subValue: 'naloga završeno',
     trend: -1,
@@ -76,7 +86,7 @@ const metrics: MetricCardData[] = [
   },
   {
     id: 'labor-revenue',
-    label: 'Prihod od rada MTD',
+    label: 'Naplata rada MTD',
     value: '15,468 KM',
     subValue: '62.4% od prihoda',
     trend: 5.9,
@@ -96,17 +106,6 @@ const metrics: MetricCardData[] = [
     variant: 'alert',
     href: '/finansije?section=isplate',
   },
-  {
-    id: 'avg-order-value',
-    label: 'Prosječna vrijednost naloga',
-    value: '412 KM',
-    subValue: 'po zatvorenom nalogu',
-    trend: 3.2,
-    trendLabel: 'vs prošli mjesec',
-    icon: <Zap size={22} />,
-    variant: 'default',
-    href: '/work-order-managment',
-  },
 ];
 
 interface DashboardOrder {
@@ -115,6 +114,7 @@ interface DashboardOrder {
   partsTotal: number;
   laborTotal: number;
   orderTotal: number;
+  partsPurchaseCost?: number;
 }
 
 interface DashboardPayout {
@@ -127,36 +127,53 @@ interface DashboardSalary {
   paid: boolean;
 }
 
+interface DashboardBonus {
+  mechanic: string;
+  amount: number;
+  paid: boolean;
+}
+
 function readDashboardData() {
   try {
     const storedOrders = readCache<DashboardOrder[] | null>('autoservis-work-orders', null);
     const storedPayouts = readCache<DashboardPayout[] | null>('autoservis-payouts', null);
     const storedSalaries = readCache<DashboardSalary[] | null>('autoservis-salaries', null);
-    if (!storedOrders && !storedPayouts && !storedSalaries) return {};
+    const storedBonuses = readCache<DashboardBonus[] | null>(WEEKLY_BONUSES_STORAGE_KEY, null);
+    if (!storedOrders && !storedPayouts && !storedSalaries && !storedBonuses) return {};
     const session = JSON.parse(window.sessionStorage.getItem('autoservis-session') || window.localStorage.getItem('autoservis-session') || 'null') as { userRole?: string; userName?: string } | null;
 const allOrders = (storedOrders || []) as DashboardOrder[];
     const allPayouts = (storedPayouts || []) as (DashboardPayout & { name?: string })[];
     const allSalaries = (storedSalaries || []) as (DashboardSalary & { name?: string })[];
+    const allBonuses = (storedBonuses || []) as DashboardBonus[];
     const isMechanic = session?.userRole === 'mechanic';
     const orders = isMechanic ? allOrders.filter((order) => order.mechanic === session?.userName) : allOrders;
     const payouts = isMechanic ? allPayouts.filter((payout) => payout.name === session?.userName) : allPayouts;
     const salaries = isMechanic ? allSalaries.filter((salary) => salary.name === session?.userName) : allSalaries;
+    const bonuses = isMechanic ? allBonuses.filter((bonus) => bonus.mechanic === session?.userName) : allBonuses;
     const activeOrders = orders.filter((order) => order.status !== 'Zatvoren' && order.status !== 'Otkazan');
     const closedOrders = orders.filter((order) => order.status === 'Zatvoren');
     const revenue = orders.reduce((sum, order) => sum + Number(order.orderTotal || 0), 0);
     const parts = orders.reduce((sum, order) => sum + Number(order.partsTotal || 0), 0);
     const labor = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0), 0);
+    const mechanicShare = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0) * 0.1, 0);
+    const partsPurchaseCost = orders.reduce(
+      (sum, order) => sum + Number(order.partsPurchaseCost ?? order.partsTotal ?? 0),
+      0
+    );
+    const profit = revenue - partsPurchaseCost - mechanicShare;
     const unpaid = payouts.filter((payout) => !payout.paid).reduce((sum, payout) => sum + Number(payout.amount || 0), 0)
-      + salaries.filter((salary) => !salary.paid).reduce((sum, salary) => sum + Number(salary.amount || 0), 0);
+      + salaries.filter((salary) => !salary.paid).reduce((sum, salary) => sum + Number(salary.amount || 0), 0)
+      + bonuses.filter((bonus) => !bonus.paid).reduce((sum, bonus) => sum + Number(bonus.amount || 0), 0);
     const formatKm = (value: number) => `${Math.round(value).toLocaleString()} KM`;
     const revenuePercent = revenue ? `${((labor / revenue) * 100).toFixed(1)}% od prihoda` : '0% od prihoda';
 
     return {
       'open-orders': { value: String(activeOrders.length), subValue: `${activeOrders.filter((order) => order.status === 'Čeka dijelove').length} čekaju dijelove` },
       'revenue-mtd': { value: formatKm(revenue), subValue: 'Sačuvani radni nalozi' },
+      'profit-mtd': { value: formatKm(profit), subValue: 'Nakon dijelova i 10% za majstore' },
       'closed-today': { value: String(closedOrders.length), subValue: 'zatvorenih naloga' },
       'parts-cost-mtd': { value: formatKm(parts), subValue: revenue ? `${((parts / revenue) * 100).toFixed(1)}% od prihoda` : '0% od prihoda' },
-      'labor-revenue': { value: formatKm(labor), subValue: revenuePercent },
+      'labor-revenue': { value: formatKm(labor - mechanicShare), subValue: 'Nakon 10% za majstore' },
       'mechanic-payouts': {
         value: formatKm(unpaid),
         subValue: unpaid > 0
@@ -166,7 +183,6 @@ const allOrders = (storedOrders || []) as DashboardOrder[];
         variant: unpaid > 0 ? 'alert' : 'positive',
         icon: unpaid > 0 ? <AlertCircle size={22} /> : <CheckCircle2 size={22} />,
       },
-      'avg-order-value': { value: formatKm(closedOrders.length ? revenue / closedOrders.length : 0), subValue: 'po zatvorenom nalogu' },
     } as Record<string, Partial<MetricCardData>>;
   } catch {
     return {};
@@ -332,7 +348,7 @@ useEffect(() => {
   const remainingCards = liveMetrics.slice(1);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4 2xl:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {/* Hero card */}
       <div className="col-span-1 sm:col-span-2 lg:col-span-2">
         <MetricCard metric={heroCard} />

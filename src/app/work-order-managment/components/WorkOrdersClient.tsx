@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -56,8 +56,7 @@ function readStoredOrders(): WorkOrder[] {
 }
 
 export default function WorkOrdersClient() {
-  const [orders, setOrders] = useState<WorkOrder[]>(mockWorkOrders);
-  const [storageLoaded, setStorageLoaded] = useState(false);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'Svi'>('Svi');
   const [mechanicFilter, setMechanicFilter] = useState<string>('Svi');
@@ -74,31 +73,45 @@ export default function WorkOrdersClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
+  // Becomes true once the initial pull from Supabase has resolved. Until then
+  // persistOrders is a no-op so a stale/empty local list can never overwrite
+  // the shared server copy (this is what made orders "disappear" between
+  // desktop and mobile).
+  const syncReadyRef = useRef(false);
   const searchParams = useSearchParams();
   const { mechanics } = useMechanics();
 
-useEffect(() => {
-    setOrders(readStoredOrders());
-    setStorageLoaded(true);
-    // Pull latest from shared storage on mount.
-    void import('@/lib/syncStore').then(({ pull }) => {
-      pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
-        if (remote) setOrders(normalizeOrders(remote));
-      });
+  useEffect(() => {
+    let active = true;
+    // Never push defaults before the shared copy has been read. Otherwise a
+    // new phone can overwrite saved orders with its empty/demo state.
+    void import('@/lib/syncStore').then(async ({ pull }) => {
+      const cached = normalizeOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+      // Show cached data immediately so the UI isn't empty.
+      setOrders(cached);
+      const remote = await pull<WorkOrder[]>(ORDERS_STORAGE_KEY);
+      if (!active) return;
+      syncReadyRef.current = true;
+      setOrders(normalizeOrders(remote ?? cached));
     });
     // Subscribe to realtime changes from other devices.
     const unsub = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => {
       setOrders(readStoredOrders());
     });
-    return () => unsub();
+    return () => {
+      active = false;
+      unsub();
+    };
   }, []);
 
-useEffect(() => {
-    if (!storageLoaded) return;
-    writeCache(ORDERS_STORAGE_KEY, orders);
-    // Push to shared storage so other devices see it.
-    void push(ORDERS_STORAGE_KEY, orders);
-  }, [orders, storageLoaded]);
+  // A refresh must only read data. Persist exclusively from a deliberate user
+  // action below; otherwise an empty/stale render can overwrite the shared
+  // list while another device is loading it.
+  const persistOrders = useCallback((next: WorkOrder[]) => {
+    writeCache(ORDERS_STORAGE_KEY, next);
+    // Only push to the server after the initial pull has completed.
+    if (syncReadyRef.current) void push(ORDERS_STORAGE_KEY, next);
+  }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
@@ -118,11 +131,8 @@ useEffect(() => {
   }, [orders, searchParams]);
 
   const mechanicFilterOptions = useMemo(
-    () => [
-      'Svi',
-      ...Array.from(new Set([...activeMechanicNames(mechanics), ...orders.map((o) => o.mechanic)])),
-    ],
-    [mechanics, orders]
+    () => ['Svi', ...activeMechanicNames(mechanics)],
+    [mechanics]
   );
 
   const filtered = useMemo(() => {
@@ -210,7 +220,11 @@ useEffect(() => {
     if (!deleteId) return;
     setDeleteLoading(true);
     await new Promise((r) => setTimeout(r, 700));
-    setOrders((prev) => prev.filter((o) => o.id !== deleteId));
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== deleteId);
+      persistOrders(next);
+      return next;
+    });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.delete(deleteId);
@@ -222,17 +236,29 @@ useEffect(() => {
   };
 
   const handleBulkDelete = async () => {
-    setOrders((prev) => prev.filter((o) => !selectedIds.has(o.id)));
+    setOrders((prev) => {
+      const next = prev.filter((o) => !selectedIds.has(o.id));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`${selectedIds.size} naloga obrisano`);
     setSelectedIds(new Set());
   };
 
   const handleSaveOrder = (order: WorkOrder) => {
     if (orders.find((o) => o.id === order.id)) {
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)));
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === order.id ? order : o));
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} ažuriran`);
     } else {
-      setOrders((prev) => [order, ...prev]);
+      setOrders((prev) => {
+        const next = [order, ...prev];
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} kreiran`);
     }
     setCreateOpen(false);
@@ -245,7 +271,11 @@ useEffect(() => {
       setCompletingOrder(order);
       return;
     }
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o)));
+    setOrders((prev) => {
+      const next = prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`Status ažuriran na "${newStatus}"`);
   };
 
@@ -267,7 +297,11 @@ useEffect(() => {
       serviceProfit,
       updatedAt: new Date().toISOString().split('T')[0],
     };
-    setOrders((prev) => prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)));
+    setOrders((prev) => {
+      const next = prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
+      persistOrders(next);
+      return next;
+    });
     setCompletingOrder(null);
     toast.success(`Nalog ${updatedOrder.orderNum} završen i obračunat`);
   };
@@ -397,6 +431,7 @@ useEffect(() => {
                 {(
                   [
                     { key: 'orderNum', label: 'Nalog #' },
+                    { key: 'workDate', label: 'Datum' },
                     { key: 'clientName', label: 'Klijent' },
                     { key: 'vehicle', label: 'Vozilo' },
                     { key: 'mechanic', label: 'Majstor' },
@@ -631,6 +666,9 @@ function WorkOrderRow({
         <span className="font-mono-data text-xs font-medium text-primary whitespace-nowrap">
           {order.orderNum}
         </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+        {order.workDate || order.createdAt}
       </td>
       <td className="px-4 py-3">
         <p className="font-medium text-foreground text-sm leading-tight whitespace-nowrap">

@@ -24,6 +24,7 @@ const STATUSES: OrderStatus[] = [
 ];
 
 interface FormValues {
+  workDate: string;
   clientName: string;
   clientPhone: string;
   vehicleYear: string;
@@ -102,6 +103,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       setSession(readSession());
       if (order) {
         reset({
+          workDate: order.workDate || order.createdAt,
           clientName: order.clientName,
           clientPhone: order.clientPhone,
           vehicleYear: order.vehicleYear,
@@ -118,6 +120,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         });
       } else {
         reset({
+          workDate: new Date().toISOString().split('T')[0],
           clientName: '',
           clientPhone: '',
           vehicleYear: '',
@@ -162,6 +165,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     const saved: WorkOrder = {
       id,
       orderNum,
+      workDate: data.workDate || new Date().toISOString().split('T')[0],
       clientName: data.clientName,
       clientPhone: data.clientPhone,
       vehicleYear: data.vehicleYear,
@@ -253,6 +257,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
+                Datum radnog naloga
+              </label>
+              <input
+                type="date"
+                {...register('workDate')}
+                className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
                 Ime klijenta <span className="text-red-500">*</span>
               </label>
               <input
@@ -271,6 +285,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </label>
               <input
                 type="tel"
+                inputMode="tel"
                 placeholder="(512) 883-4201"
                 {...register('clientPhone')}
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
@@ -296,6 +311,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="2019"
                 maxLength={4}
                 {...register('vehicleYear', { required: 'Godina je obavezna' })}
@@ -441,6 +458,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </p>
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.5}
@@ -454,11 +472,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             <span className="text-sm text-muted-foreground">%</span>
           </div>
 
+          <p className="sm:hidden mb-2 text-xs text-muted-foreground">
+            Prevucite tabelu lijevo-desno da unesete količinu i cijenu.
+          </p>
           <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[680px] sm:min-w-full text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-[280px]">
                     Naziv dijela / Opis
                   </th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-20">
@@ -495,7 +516,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           {...register(`parts.${idx}.name`, {
                             required: 'Naziv dijela je obavezan',
                           })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                          className="w-full min-w-[250px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                         />
                         <label className="inline-flex items-center gap-1.5 mt-1 text-xs text-primary cursor-pointer">
                           Dodaj sliku dijela
@@ -566,6 +587,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <td className="px-3 py-2">
                         <input
                           type="number"
+                          inputMode="numeric"
                           min={1}
                           step={1}
                           {...register(`parts.${idx}.qty`, {
@@ -582,6 +604,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </span>
                           <input
                             type="number"
+                            inputMode="decimal"
                             min={0}
                             step={0.01}
                             {...register(`parts.${idx}.unitCost`, {
@@ -678,11 +701,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </button>
           </div>
 
+          <p className="sm:hidden mb-2 text-xs text-muted-foreground">
+            Prevucite tabelu lijevo-desno da unesete sate i cijenu.
+          </p>
           <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[650px] sm:min-w-full text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-[260px]">
                     Opis usluge
                   </th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-24">
@@ -711,7 +737,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           {...register(`laborEntries.${idx}.description`, {
                             required: 'Opis je obavezan',
                           })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                          className="w-full min-w-[240px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                         />
                         {errors.laborEntries?.[idx]?.description && (
                           <p className="text-xs text-red-500 mt-0.5">
@@ -722,6 +748,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <td className="px-3 py-2">
                         <input
                           type="number"
+                          inputMode="decimal"
                           min={0.25}
                           step={0.25}
                           {...register(`laborEntries.${idx}.hours`, {
@@ -738,6 +765,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </span>
                           <input
                             type="number"
+                            inputMode="decimal"
                             min={0}
                             step={5}
                             {...register(`laborEntries.${idx}.rate`, {

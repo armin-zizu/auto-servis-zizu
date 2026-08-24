@@ -2,18 +2,21 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Check, Plus, Save, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, ChevronUp, Plus, Save, Trash2 } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
+import BonusPayoutReminder from '@/app/components/BonusPayoutReminder';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
-import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
+import { pull, readCache, subscribe, writeCache, push } from '@/lib/syncStore';
+import { ORDERS_STORAGE_KEY, WorkOrder } from '@/app/work-order-managment/data/mockWorkOrders';
+import {
+  calculateWeeklyBonuses,
+  formatBonusPeriod,
+  getWeeklyBonusPeriod,
+  WeeklyBonus,
+  WEEKLY_BONUSES_STORAGE_KEY,
+  WEEKLY_BONUS_RATE,
+} from '@/lib/weeklyBonuses';
 
-interface Payout {
-  id: string;
-  name: string;
-  orders: number;
-  amount: number;
-  paid: boolean;
-}
 interface Salary {
   id: string;
   name: string;
@@ -21,20 +24,7 @@ interface Salary {
   amount: number;
   paid: boolean;
 }
-
-const initialPayouts: Payout[] = [
-  { id: 'mech-001', name: 'Derek Hollis', orders: 18, amount: 2184, paid: false },
-  { id: 'mech-002', name: 'Tomas Reyes', orders: 14, amount: 1542, paid: false },
-  { id: 'mech-003', name: 'Mei-Ling Park', orders: 11, amount: 954, paid: false },
-  { id: 'mech-004', name: 'Antoine Briggs', orders: 9, amount: 792, paid: true },
-];
-const PAYOUTS_STORAGE_KEY = 'autoservis-payouts';
 const SALARIES_STORAGE_KEY = 'autoservis-salaries';
-
-function readStored<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') return fallback;
-  return readCache<T>(key, fallback);
-}
 
 function readSession() {
   try {
@@ -50,92 +40,116 @@ function readSession() {
 
 export default function MechanicPayoutsPage() {
   const { mechanics } = useMechanics();
-
-  const [payouts, setPayouts] = useState(initialPayouts);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const [bonuses, setBonuses] = useState<WeeklyBonus[]>([]);
   const [salaries, setSalaries] = useState<Salary[]>([]);
-  const [storageLoaded, setStorageLoaded] = useState(false);
-  const [salaryName, setSalaryName] = useState('');
-  const [salaryMonth, setSalaryMonth] = useState('2026-08');
-  const [salaryAmount, setSalaryAmount] = useState('');
-  const [currentUserName, setCurrentUserName] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [showOrders, setShowOrders] = useState(false);
+  const [message, setMessage] = useState('');
   const [isMechanic, setIsMechanic] = useState(false);
+  const [currentUserName, setCurrentUserName] = useState('');
+  const [salaryName, setSalaryName] = useState('');
+  const [salaryMonth, setSalaryMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [salaryAmount, setSalaryAmount] = useState('');
+  const period = useMemo(() => getWeeklyBonusPeriod(), []);
 
-useEffect(() => {
+  useEffect(() => {
+    let active = true;
     const session = readSession();
-    const mechanicSession = session?.userRole === 'mechanic';
-    setIsMechanic(mechanicSession);
+    setIsMechanic(session?.userRole === 'mechanic');
     setCurrentUserName(session?.userName || '');
-    if (mechanicSession && session?.userName) setSalaryName(session.userName);
-    setPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts));
-    setSalaries(readStored(SALARIES_STORAGE_KEY, []));
-    setStorageLoaded(true);
-    // Pull latest from shared storage on mount.
-    void import('@/lib/syncStore').then(({ pull }) => {
-      void pull<Payout[]>(PAYOUTS_STORAGE_KEY).then((remote) => {
-        if (remote) setPayouts(remote);
-      });
-      void pull<Salary[]>(SALARIES_STORAGE_KEY).then((remote) => {
-        if (remote) setSalaries(remote);
-      });
+    void Promise.all([
+      pull<WorkOrder[]>(ORDERS_STORAGE_KEY),
+      pull<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY),
+      pull<Salary[]>(SALARIES_STORAGE_KEY),
+    ]).then(([remoteOrders, remoteBonuses, remoteSalaries]) => {
+      if (!active) return;
+      setOrders(remoteOrders ?? readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+      setBonuses(remoteBonuses ?? readCache<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, []));
+      setSalaries(remoteSalaries ?? readCache<Salary[]>(SALARIES_STORAGE_KEY, []));
     });
-    // Subscribe to realtime changes from other devices.
-    const unsubPayouts = subscribe<Payout[]>(PAYOUTS_STORAGE_KEY, () => {
-      setPayouts(readStored(PAYOUTS_STORAGE_KEY, initialPayouts));
-    });
-    const unsubSalaries = subscribe<Salary[]>(SALARIES_STORAGE_KEY, () => {
-      setSalaries(readStored(SALARIES_STORAGE_KEY, []));
-    });
+    const unsubOrders = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () =>
+      setOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []))
+    );
+    const unsubBonuses = subscribe<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, () =>
+      setBonuses(readCache<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, []))
+    );
+    const unsubSalaries = subscribe<Salary[]>(SALARIES_STORAGE_KEY, () =>
+      setSalaries(readCache<Salary[]>(SALARIES_STORAGE_KEY, []))
+    );
     return () => {
-      unsubPayouts();
+      active = false;
+      unsubOrders();
+      unsubBonuses();
       unsubSalaries();
     };
   }, []);
 
-  useEffect(() => {
-    if (storageLoaded) {
-      writeCache(PAYOUTS_STORAGE_KEY, payouts);
-      void push(PAYOUTS_STORAGE_KEY, payouts);
-    }
-  }, [payouts, storageLoaded]);
-  useEffect(() => {
-    if (storageLoaded) {
-      writeCache(SALARIES_STORAGE_KEY, salaries);
-      void push(SALARIES_STORAGE_KEY, salaries);
-    }
-  }, [salaries, storageLoaded]);
-
-  const visiblePayouts = isMechanic
-    ? payouts.filter((payout) => payout.name === currentUserName)
-    : payouts;
-  const visibleSalaries = isMechanic
-    ? salaries.filter((salary) => salary.name === currentUserName)
-    : salaries;
   const availableMechanics = useMemo(
     () => (isMechanic && currentUserName ? [currentUserName] : activeMechanicNames(mechanics)),
     [isMechanic, currentUserName, mechanics]
   );
-
   useEffect(() => {
     if (!availableMechanics.includes(salaryName)) setSalaryName(availableMechanics[0] ?? '');
   }, [availableMechanics, salaryName]);
-  const unpaidTotal =
-    visiblePayouts
-      .filter((payout) => !payout.paid)
-      .reduce((total, payout) => total + payout.amount, 0) +
-    visibleSalaries
-      .filter((salary) => !salary.paid)
-      .reduce((total, salary) => total + salary.amount, 0);
 
-  const updatePayout = (id: string, changes: Partial<Payout>) =>
-    setPayouts((current) =>
-      current.map((payout) => (payout.id === id ? { ...payout, ...changes } : payout))
-    );
-  const addSalary = (event: React.FormEvent<HTMLFormElement>) => {
+  const periodBonuses = bonuses.filter((bonus) => bonus.periodKey === period.key);
+  const calculatedNames = new Set(periodBonuses.map((bonus) => bonus.mechanic));
+  const eligibleOrders = useMemo(
+    () =>
+      orders.filter(
+        (order) =>
+          order.status === 'Zatvoren' &&
+          (order.workDate || order.updatedAt) >= period.start &&
+          (order.workDate || order.updatedAt) <= period.end &&
+          availableMechanics.includes(order.mechanic) &&
+          !calculatedNames.has(order.mechanic)
+      ),
+    [orders, period, availableMechanics, periodBonuses]
+  );
+  const selectableNames = [...new Set(eligibleOrders.map((order) => order.mechanic))];
+  const selectedOrders = eligibleOrders.filter((order) => selected.has(order.mechanic));
+  const visibleBonuses = isMechanic
+    ? bonuses.filter((bonus) => bonus.mechanic === currentUserName)
+    : bonuses;
+  const visibleSalaries = isMechanic
+    ? salaries.filter((salary) => salary.name === currentUserName)
+    : salaries;
+  const unpaidTotal = [...visibleBonuses, ...visibleSalaries]
+    .filter((item) => !item.paid)
+    .reduce((sum, item) => sum + item.amount, 0);
+
+  const saveBonuses = (next: WeeklyBonus[]) => {
+    setBonuses(next);
+    writeCache(WEEKLY_BONUSES_STORAGE_KEY, next);
+    void push(WEEKLY_BONUSES_STORAGE_KEY, next);
+  };
+  const saveSalaries = (next: Salary[]) => {
+    setSalaries(next);
+    writeCache(SALARIES_STORAGE_KEY, next);
+    void push(SALARIES_STORAGE_KEY, next);
+  };
+  const createBonus = () => {
+    if (!selected.size) {
+      setMessage('Odaberite barem jednog majstora za obračun.');
+      return;
+    }
+    const next = calculateWeeklyBonuses(orders, [...selected], period);
+    if (!next.length) {
+      setMessage('Odabrani majstori nemaju zatvorene naloge u ovom periodu.');
+      return;
+    }
+    saveBonuses([...bonuses, ...next]);
+    setSelected(new Set());
+    setShowOrders(false);
+    setMessage(`Obračun je kreiran za ${next.length} majstora.`);
+  };
+  const addSalary = (event: React.FormEvent) => {
     event.preventDefault();
     const amount = Number(salaryAmount);
-    if (!amount || amount < 0 || !salaryMonth) return;
-    setSalaries((current) => [
-      ...current,
+    if (!salaryName || !salaryMonth || !Number.isFinite(amount) || amount <= 0) return;
+    saveSalaries([
+      ...salaries,
       { id: `salary-${Date.now()}`, name: salaryName, month: salaryMonth, amount, paid: false },
     ]);
     setSalaryAmount('');
@@ -150,183 +164,230 @@ useEffect(() => {
           </Link>
           <h1 className="text-2xl font-semibold text-foreground mt-2">Isplate majstorima</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Unesite iznos i označite kada je isplata izvršena
+            Odaberite majstore, provjerite naloge i obračunajte 10% od rada.
           </p>
         </div>
-        <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <BonusPayoutReminder />
+        <section className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="font-semibold text-foreground">Isplate MTD</h2>
+              <h2 className="font-semibold text-foreground">Sedmični obračun bonusa</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Neisplaćeno ukupno: {unpaidTotal.toLocaleString()} KM
+                Period: {formatBonusPeriod(period)} · {WEEKLY_BONUS_RATE}% od rada na zatvorenim
+                nalozima
               </p>
             </div>
-            <span className="text-xs font-medium text-primary bg-primary/10 rounded-full px-3 py-1">
-              Fiksna stopa 10%
-            </span>
-          </div>
-          <div className="divide-y divide-border">
-            {visiblePayouts.map((payout) => (
-              <div
-                key={payout.id}
-                className="px-5 py-4 flex flex-col lg:flex-row lg:items-center gap-4 lg:justify-between"
+            {!isMechanic && (
+              <button
+                type="button"
+                onClick={createBonus}
+                disabled={!selected.size}
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 disabled:opacity-50"
               >
-                <div className="min-w-48">
-                  <p className="text-sm font-medium text-foreground">{payout.name}</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {payout.orders} završenih naloga · stopa 10%
-                  </p>
-                </div>
-                <div className="flex items-center gap-3 flex-wrap">
-                  <label className="text-xs text-muted-foreground">
-                    Iznos za isplatu
-                    <div className="relative mt-1">
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                        KM
-                      </span>
-                      <input
-                        disabled={isMechanic}
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={payout.amount}
-                        onChange={(event) =>
-                          updatePayout(payout.id, { amount: Number(event.target.value) || 0 })
-                        }
-                        className="w-36 pl-3 pr-10 py-2 text-sm bg-background border border-input rounded-lg text-right tabular-nums focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-60"
-                        aria-label={`Iznos za isplatu ${payout.name}`}
-                      />
-                    </div>
-                  </label>
-                  <button
-                    disabled={isMechanic}
-                    type="button"
-                    onClick={() => updatePayout(payout.id, { paid: !payout.paid })}
-                    className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors mt-5 disabled:opacity-60 ${payout.paid ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-amber-100 text-amber-700 hover:bg-amber-200'}`}
-                  >
-                    {payout.paid ? <Check size={14} /> : <Save size={14} />}
-                    {payout.paid ? 'Isplaćeno' : 'Označi isplaćeno'}
-                  </button>
-                </div>
-              </div>
-            ))}
+                <Plus size={16} /> Obračunaj odabrane
+              </button>
+            )}
           </div>
-          {visibleSalaries.length > 0 && (
-            <div className="border-t-2 border-border">
-              <div className="px-5 py-3 bg-muted/30">
-                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Mjesečne plate
-                </h3>
-              </div>
-              <div className="divide-y divide-border">
-                {visibleSalaries.map((salary) => (
-                  <div
-                    key={salary.id}
-                    className="px-5 py-4 flex items-center justify-between gap-4 flex-wrap"
-                  >
-                    <div>
-                      <p className="text-sm font-medium text-foreground">{salary.name}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Mjesečna plata · {salary.month}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-base font-bold text-foreground tabular-nums">
-                        {salary.amount.toLocaleString()} KM
-                      </span>
+          {!isMechanic && (
+            <div className="px-5 py-4 border-b border-border bg-muted/20">
+              <p className="text-xs font-semibold text-foreground mb-3">
+                Odaberite majstore za obračun
+              </p>
+              {selectableNames.length ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectableNames.map((name) => {
+                    const mechanicOrders = eligibleOrders.filter(
+                      (order) => order.mechanic === name
+                    );
+                    const labor = mechanicOrders.reduce((sum, order) => sum + order.laborTotal, 0);
+                    const checked = selected.has(name);
+                    return (
                       <button
-                        disabled={isMechanic}
+                        key={name}
                         type="button"
                         onClick={() =>
-                          setSalaries((current) =>
-                            current.map((item) =>
-                              item.id === salary.id ? { ...item, paid: !item.paid } : item
+                          setSelected((current) => {
+                            const next = new Set(current);
+                            if (checked) next.delete(name);
+                            else next.add(name);
+                            return next;
+                          })
+                        }
+                        className={`rounded-lg border px-3 py-2 text-left text-xs transition-colors ${checked ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-card hover:bg-muted'}`}
+                      >
+                        <span className="block font-semibold">{name}</span>
+                        <span className="block mt-0.5 opacity-80">
+                          {mechanicOrders.length} naloga · 10% = {(labor * 0.1).toLocaleString()} KM
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Nema novih zatvorenih naloga za obračun u ovom periodu.
+                </p>
+              )}
+              {selectedOrders.length > 0 && (
+                <div className="mt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowOrders((value) => !value)}
+                    className="inline-flex items-center gap-1 text-xs font-medium text-primary"
+                  >
+                    {showOrders ? <ChevronUp size={14} /> : <ChevronDown size={14} />} Nalozi
+                    uključeni u obračun ({selectedOrders.length})
+                  </button>
+                  {showOrders && (
+                    <div className="mt-2 divide-y rounded-lg border border-border bg-card">
+                      {selectedOrders.map((order) => (
+                        <div
+                          key={order.id}
+                          className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 px-3 py-2 text-xs"
+                        >
+                          <span>
+                            <strong>{order.orderNum}</strong> · {order.clientName} ·{' '}
+                            {order.mechanic}
+                          </span>
+                          <span className="font-medium">
+                            Rad {order.laborTotal.toLocaleString()} KM · bonus{' '}
+                            {(order.laborTotal * 0.1).toLocaleString()} KM
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {message && <p className="px-5 pt-3 text-xs text-primary">{message}</p>}
+          <div className="divide-y divide-border">
+            {periodBonuses
+              .filter((bonus) => !isMechanic || bonus.mechanic === currentUserName)
+              .map((bonus) => (
+                <div
+                  key={bonus.id}
+                  className="px-5 py-3 flex items-center justify-between gap-3 flex-wrap"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{bonus.mechanic}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {bonus.orders} zatvorenih naloga · rad {bonus.laborRevenue.toLocaleString()}{' '}
+                      KM · {WEEKLY_BONUS_RATE}% bonus
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span
+                      className={`font-bold tabular-nums ${bonus.paid ? 'line-through text-muted-foreground' : 'text-foreground'}`}
+                    >
+                      {bonus.amount.toLocaleString()} KM
+                    </span>
+                    {!isMechanic && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          saveBonuses(
+                            bonuses.map((item) =>
+                              item.id === bonus.id ? { ...item, paid: !item.paid } : item
                             )
                           )
                         }
-                        className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium disabled:opacity-60 ${salary.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
+                        className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium ${bonus.paid ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}
                       >
-                        {salary.paid ? <Check size={14} /> : <Save size={14} />}
-                        {salary.paid ? 'Isplaćeno' : 'Označi isplaćeno'}
+                        {bonus.paid ? <Check size={14} /> : <Save size={14} />}
+                        {bonus.paid ? 'Isplaćeno' : 'Označi isplaćeno'}
                       </button>
-                      <button
-                        disabled={isMechanic}
-                        type="button"
-                        onClick={() =>
-                          setSalaries((current) => current.filter((item) => item.id !== salary.id))
-                        }
-                        className="p-2 rounded-lg text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-60"
-                        aria-label={`Obriši platu ${salary.name}`}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
+                    )}
                   </div>
-                ))}
+                </div>
+              ))}
+            {!periodBonuses.length && (
+              <p className="px-5 py-5 text-sm text-muted-foreground">
+                Još nema kreiranog obračuna za ovaj period.
+              </p>
+            )}
+          </div>
+        </section>
+        <section className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold text-foreground">Obaveze za isplatu</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Neisplaćeno ukupno: {unpaidTotal.toLocaleString()} KM
+            </p>
+          </div>
+          <div className="divide-y divide-border">
+            {[...visibleBonuses, ...visibleSalaries].map((item) => (
+              <div key={item.id} className="px-5 py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">
+                    {'mechanic' in item ? item.mechanic : item.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {'periodKey' in item ? 'Sedmični bonus 10%' : `Mjesečna plata · ${item.month}`}
+                  </p>
+                </div>
+                <span
+                  className={`font-semibold tabular-nums ${item.paid ? 'line-through text-muted-foreground' : ''}`}
+                >
+                  {item.amount.toLocaleString()} KM
+                </span>
               </div>
-            </div>
-          )}
-        </div>
+            ))}
+            {!visibleBonuses.length && !visibleSalaries.length && (
+              <p className="px-5 py-5 text-sm text-muted-foreground">Nema evidentiranih obaveza.</p>
+            )}
+          </div>
+        </section>
         {!isMechanic && (
-          <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
+          <section className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
             <div className="px-5 py-4 border-b border-border">
               <h2 className="font-semibold text-foreground">Nova mjesečna plata</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Dodajte fiksnu mjesečnu platu majstora kao novu obavezu za isplatu.
+                Fiksnu platu evidentirajte odvojeno od sedmičnog bonusa.
               </p>
             </div>
             <form
               onSubmit={addSalary}
               className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end"
             >
-              <label className="text-xs font-medium text-foreground">
+              <label className="text-xs font-medium">
                 Majstor
                 <select
                   value={salaryName}
                   onChange={(event) => setSalaryName(event.target.value)}
-                  className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg"
                 >
                   {availableMechanics.map((name) => (
                     <option key={name}>{name}</option>
                   ))}
                 </select>
               </label>
-              <label className="text-xs font-medium text-foreground">
+              <label className="text-xs font-medium">
                 Mjesec
                 <input
                   type="month"
                   value={salaryMonth}
                   onChange={(event) => setSalaryMonth(event.target.value)}
-                  required
-                  className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg"
                 />
               </label>
-              <label className="text-xs font-medium text-foreground">
+              <label className="text-xs font-medium">
                 Iznos plate
-                <div className="relative mt-1">
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-                    KM
-                  </span>
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={salaryAmount}
-                    onChange={(event) => setSalaryAmount(event.target.value)}
-                    required
-                    placeholder="npr. 1800"
-                    className="w-full pl-3 pr-10 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={salaryAmount}
+                  onChange={(event) => setSalaryAmount(event.target.value)}
+                  className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg"
+                />
               </label>
-              <button
-                type="submit"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 transition-colors"
-              >
+              <button className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg">
                 <Plus size={16} /> Dodaj platu
               </button>
             </form>
-          </div>
+          </section>
         )}
       </div>
     </AppLayout>
