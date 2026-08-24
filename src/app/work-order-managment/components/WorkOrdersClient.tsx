@@ -431,6 +431,7 @@ export default function WorkOrdersClient() {
                 {(
                   [
                     { key: 'orderNum', label: 'Nalog #' },
+                    { key: 'workDate', label: 'Datum' },
                     { key: 'clientName', label: 'Klijent' },
                     { key: 'vehicle', label: 'Vozilo' },
                     { key: 'mechanic', label: 'Majstor' },
@@ -665,6 +666,9 @@ function WorkOrderRow({
         <span className="font-mono-data text-xs font-medium text-primary whitespace-nowrap">
           {order.orderNum}
         </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+        {order.workDate || order.createdAt}
       </td>
       <td className="px-4 py-3">
         <p className="font-medium text-foreground text-sm leading-tight whitespace-nowrap">

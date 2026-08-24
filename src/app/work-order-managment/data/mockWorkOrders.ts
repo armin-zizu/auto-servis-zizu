@@ -42,6 +42,7 @@ export interface WorkOrder {
   notes: string;
   createdBy: string;
   createdByRole: 'owner' | 'mechanic';
+  workDate?: string;
   createdAt: string;
   updatedAt: string;
   supplierPartsDiscountPct?: number;

@@ -5,8 +5,20 @@ import { WorkOrder, ORDERS_STORAGE_KEY } from '@/app/work-order-managment/data/m
 import { readCache, pull, subscribe, SYNC_EVENT } from './syncStore';
 import { WEEKLY_BONUSES_STORAGE_KEY, WeeklyBonus } from './weeklyBonuses';
 
-export interface PayoutRecord { id: string; name: string; orders: number; amount: number; paid: boolean }
-export interface SalaryRecord { id: string; name: string; month: string; amount: number; paid: boolean }
+export interface PayoutRecord {
+  id: string;
+  name: string;
+  orders: number;
+  amount: number;
+  paid: boolean;
+}
+export interface SalaryRecord {
+  id: string;
+  name: string;
+  month: string;
+  amount: number;
+  paid: boolean;
+}
 
 export interface FinanceSummary {
   revenue: number;
@@ -31,16 +43,53 @@ function isInCurrentMonth(date: string | undefined): boolean {
   return Boolean(date && date.slice(0, 7) === currentMonth());
 }
 
+export type PeriodMode = 'month' | 'range';
+
+export interface PeriodFilter {
+  mode: PeriodMode;
+  /** YYYY-MM when mode is 'month' */
+  month?: string;
+  /** YYYY-MM-DD bounds when mode is 'range' (inclusive) */
+  from?: string;
+  to?: string;
+}
+
+/** Order date used for finance calculations: the day work was done. */
+export function orderFinanceDate(order: WorkOrder): string {
+  return order.workDate || order.updatedAt || order.createdAt;
+}
+
+export function orderInPeriod(order: WorkOrder, period: PeriodFilter): boolean {
+  const date = orderFinanceDate(order);
+  if (!date) return false;
+  if (period.mode === 'month') {
+    return date.slice(0, 7) === period.month;
+  }
+  if (period.from && date < period.from) return false;
+  if (period.to && date > period.to) return false;
+  return true;
+}
+
 function sum(values: { amount: number }[]) {
   return values.reduce((total, value) => total + (Number(value.amount) || 0), 0);
 }
 
-export function useFinanceSummary(): FinanceSummary {
+export function useFinanceSummary(period?: PeriodFilter): FinanceSummary {
   const [version, setVersion] = useState(0);
+  const periodKey = period
+    ? period.mode === 'month'
+      ? `m:${period.month}`
+      : `r:${period.from}:${period.to}`
+    : 'current';
 
   useEffect(() => {
     const refresh = () => setVersion((value) => value + 1);
-    const keys = [ORDERS_STORAGE_KEY, PAYOUTS_STORAGE_KEY, SALARIES_STORAGE_KEY, WEEKLY_BONUSES_STORAGE_KEY];
+    const keys = [
+      ORDERS_STORAGE_KEY,
+      PAYOUTS_STORAGE_KEY,
+      SALARIES_STORAGE_KEY,
+      WEEKLY_BONUSES_STORAGE_KEY,
+    ];
     const unsubscribers = keys.map((key) => subscribe(key, refresh));
     void Promise.all(keys.map((key) => pull(key))).then(refresh);
     window.addEventListener(SYNC_EVENT, refresh);
@@ -57,16 +106,23 @@ export function useFinanceSummary(): FinanceSummary {
     const payouts = readCache<PayoutRecord[]>(PAYOUTS_STORAGE_KEY, []);
     const salaries = readCache<SalaryRecord[]>(SALARIES_STORAGE_KEY, []);
     const bonuses = readCache<WeeklyBonus[]>(WEEKLY_BONUSES_STORAGE_KEY, []);
-    const closedOrders = orders.filter((order) => order.status === 'Zatvoren' && isInCurrentMonth(order.updatedAt));
+    const activePeriod: PeriodFilter = period ?? { mode: 'month', month: currentMonth() };
+    const closedOrders = orders.filter(
+      (order) => order.status === 'Zatvoren' && orderInPeriod(order, activePeriod)
+    );
     const relevantSalaries = salaries.filter((salary) => salary.month === currentMonth());
     const relevantBonuses = bonuses.filter((bonus) => isInCurrentMonth(bonus.createdAt));
     const paymentRecords = [...payouts, ...relevantSalaries, ...relevantBonuses];
 
     const mechanicEarnings = closedOrders.reduce(
-      (total, order) => total + (Number(order.mechanicPayout) || Number(order.laborTotal) * 0.1 || 0),
+      (total, order) =>
+        total + (Number(order.mechanicPayout) || Number(order.laborTotal) * 0.1 || 0),
       0
     );
-    const revenue = closedOrders.reduce((total, order) => total + (Number(order.orderTotal) || 0), 0);
+    const revenue = closedOrders.reduce(
+      (total, order) => total + (Number(order.orderTotal) || 0),
+      0
+    );
     const partsCost = closedOrders.reduce(
       (total, order) => total + (Number(order.partsPurchaseCost ?? order.partsTotal) || 0),
       0
@@ -74,8 +130,14 @@ export function useFinanceSummary(): FinanceSummary {
 
     return {
       revenue,
-      laborRevenue: closedOrders.reduce((total, order) => total + (Number(order.laborTotal) || 0), 0),
-      partsRevenue: closedOrders.reduce((total, order) => total + (Number(order.partsTotal) || 0), 0),
+      laborRevenue: closedOrders.reduce(
+        (total, order) => total + (Number(order.laborTotal) || 0),
+        0
+      ),
+      partsRevenue: closedOrders.reduce(
+        (total, order) => total + (Number(order.partsTotal) || 0),
+        0
+      ),
       partsCost,
       payoutsTotal: sum(paymentRecords),
       unpaidPayouts: sum(paymentRecords.filter((record) => !record.paid)),
@@ -85,5 +147,6 @@ export function useFinanceSummary(): FinanceSummary {
       operatingProfit: revenue - partsCost - mechanicEarnings,
       closedOrders: closedOrders.length,
     };
-  }, [version]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, periodKey]);
 }

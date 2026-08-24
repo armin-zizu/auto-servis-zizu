@@ -24,6 +24,7 @@ const STATUSES: OrderStatus[] = [
 ];
 
 interface FormValues {
+  workDate: string;
   clientName: string;
   clientPhone: string;
   vehicleYear: string;
@@ -102,6 +103,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       setSession(readSession());
       if (order) {
         reset({
+          workDate: order.workDate || order.createdAt,
           clientName: order.clientName,
           clientPhone: order.clientPhone,
           vehicleYear: order.vehicleYear,
@@ -118,6 +120,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         });
       } else {
         reset({
+          workDate: new Date().toISOString().split('T')[0],
           clientName: '',
           clientPhone: '',
           vehicleYear: '',
@@ -162,6 +165,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     const saved: WorkOrder = {
       id,
       orderNum,
+      workDate: data.workDate || new Date().toISOString().split('T')[0],
       clientName: data.clientName,
       clientPhone: data.clientPhone,
       vehicleYear: data.vehicleYear,
@@ -251,6 +255,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             Podaci o klijentu
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-foreground mb-1.5">
+                Datum radnog naloga
+              </label>
+              <input
+                type="date"
+                {...register('workDate')}
+                className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
                 Ime klijenta <span className="text-red-500">*</span>
