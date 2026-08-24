@@ -49,7 +49,9 @@ export function calculateWeeklyBonuses(
 
   orders.forEach((order) => {
     if (order.status !== 'Zatvoren' || !allowedMechanics.has(order.mechanic)) return;
-    const completedOn = order.updatedAt;
+    // Bonus period is based on the day the work was done, not when the order
+    // record was last touched.
+    const completedOn = order.workDate || order.updatedAt;
     if (completedOn < period.start || completedOn > period.end) return;
     const current = grouped.get(order.mechanic) ?? { orders: 0, laborRevenue: 0 };
     current.orders += 1;
@@ -77,4 +79,18 @@ export function formatBonusPeriod(period: Pick<BonusPeriod, 'start' | 'end'>): s
       new Date(`${date}T00:00:00`)
     );
   return `${format(period.start)} – ${format(period.end)}`;
+}
+
+/** True when `today` is a Friday — payout reminder day. */
+export function isBonusPayoutDay(today = new Date()): boolean {
+  return today.getDay() === 5;
+}
+
+/**
+ * The bonus period that just closed and should be paid out on a Friday.
+ * On Fridays this equals the current period (Saturday → Friday). On other
+ * days it returns the most recently completed Saturday–Friday window.
+ */
+export function getPendingPayoutPeriod(today = new Date()): BonusPeriod {
+  return getWeeklyBonusPeriod(today);
 }

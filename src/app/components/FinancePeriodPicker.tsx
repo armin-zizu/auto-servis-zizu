@@ -35,6 +35,28 @@ function lastMonths(count: number): string[] {
   return result;
 }
 
+function toIso(date: Date): string {
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 10);
+}
+
+/** Current week, Monday → today. */
+function currentWeekRange(): { from: string; to: string } {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return { from: toIso(monday), to: toIso(now) };
+}
+
+/** Last `days` days including today. */
+function lastDaysRange(days: number): { from: string; to: string } {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(to.getDate() - (days - 1));
+  return { from: toIso(from), to: toIso(to) };
+}
+
 interface FinancePeriodPickerProps {
   period: PeriodFilter;
   onChange: (period: PeriodFilter) => void;
@@ -51,6 +73,31 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
   return (
     <div className="bg-card border border-border rounded-xl shadow-card p-4 flex flex-wrap items-center gap-3">
       <CalendarDays size={18} className="text-primary shrink-0" />
+
+      {/* Quick presets */}
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => onChange({ mode: 'range', ...currentWeekRange() })}
+          className="px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+        >
+          Ova sedmica
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ mode: 'range', ...lastDaysRange(15) })}
+          className="px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+        >
+          Zadnjih 15 dana
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange({ mode: 'range', ...lastDaysRange(30) })}
+          className="px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+        >
+          Zadnjih 30 dana
+        </button>
+      </div>
 
       {!showRange ? (
         <select

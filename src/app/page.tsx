@@ -1,5 +1,6 @@
 import React from 'react';
 import AppLayout from '@/components/AppLayout';
+import BonusPayoutReminder from './components/BonusPayoutReminder';
 import MetricsBentoGrid from './components/MetricsBentoGrid';
 import RecentOrdersTable from './components/RecentOrdersTable';
 import MechanicPayoutList from './components/MechanicPayoutList';
@@ -16,9 +17,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-semibold text-foreground">Kontrolna tabla</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Pregled radionice · Avgust 2026
-            </p>
+            <p className="text-sm text-muted-foreground mt-1">Pregled radionice · Avgust 2026</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
@@ -27,6 +26,9 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
+
+        {/* Friday bonus payout reminder */}
+        <BonusPayoutReminder />
 
         {/* KPI Bento Grid */}
         <MetricsBentoGrid />
