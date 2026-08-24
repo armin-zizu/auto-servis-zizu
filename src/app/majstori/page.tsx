@@ -11,7 +11,7 @@ import {
   WorkOrder,
   mockWorkOrders,
 } from '@/app/work-order-managment/data/mockWorkOrders';
-import { readCache } from '@/lib/syncStore';
+import { readCache, pull, subscribe } from '@/lib/syncStore';
 
 function readOrders(): WorkOrder[] {
   if (typeof window === 'undefined') return mockWorkOrders;
@@ -45,6 +45,13 @@ export default function MechanicsPage() {
     const session = readSession();
     setIsOwner(!session || session.userRole === 'owner');
     setOrders(readOrders());
+    // Fetch the latest orders from Supabase so completed-order counts are
+    // correct on any device.
+    void pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
+      if (remote) setOrders(remote);
+    });
+    const unsubscribe = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => setOrders(readOrders()));
+    return unsubscribe;
   }, []);
 
   const completedByMechanic = useMemo(() => {

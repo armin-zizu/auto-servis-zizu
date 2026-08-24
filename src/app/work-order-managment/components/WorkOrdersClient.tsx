@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -73,17 +73,25 @@ export default function WorkOrdersClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
+  // Becomes true once the initial pull from Supabase has resolved. Until then
+  // persistOrders is a no-op so a stale/empty local list can never overwrite
+  // the shared server copy (this is what made orders "disappear" between
+  // desktop and mobile).
+  const syncReadyRef = useRef(false);
   const searchParams = useSearchParams();
   const { mechanics } = useMechanics();
 
-useEffect(() => {
+  useEffect(() => {
     let active = true;
     // Never push defaults before the shared copy has been read. Otherwise a
     // new phone can overwrite saved orders with its empty/demo state.
     void import('@/lib/syncStore').then(async ({ pull }) => {
       const cached = normalizeOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+      // Show cached data immediately so the UI isn't empty.
+      setOrders(cached);
       const remote = await pull<WorkOrder[]>(ORDERS_STORAGE_KEY);
       if (!active) return;
+      syncReadyRef.current = true;
       setOrders(normalizeOrders(remote ?? cached));
     });
     // Subscribe to realtime changes from other devices.
@@ -101,7 +109,8 @@ useEffect(() => {
   // list while another device is loading it.
   const persistOrders = useCallback((next: WorkOrder[]) => {
     writeCache(ORDERS_STORAGE_KEY, next);
-    void push(ORDERS_STORAGE_KEY, next);
+    // Only push to the server after the initial pull has completed.
+    if (syncReadyRef.current) void push(ORDERS_STORAGE_KEY, next);
   }, []);
 
   useEffect(() => {

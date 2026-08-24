@@ -6,7 +6,7 @@ import {
   mockWorkOrders,
   WorkOrder,
 } from '@/app/work-order-managment/data/mockWorkOrders';
-import { readCache, subscribe, SYNC_EVENT } from './syncStore';
+import { readCache, pull, subscribe, SYNC_EVENT } from './syncStore';
 
 function readOrders(): WorkOrder[] {
   return readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, mockWorkOrders);
@@ -19,6 +19,9 @@ export function useDashboardOrders(): WorkOrder[] {
   useEffect(() => {
     const refresh = () => setOrders(readOrders());
     refresh();
+    // Always fetch the latest from Supabase — realtime alone is not reliable
+    // (it can silently fail), so this guarantees fresh data on every mount.
+    void pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then(refresh);
     const unsubscribe = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, refresh);
     window.addEventListener(SYNC_EVENT, refresh);
     window.addEventListener('storage', refresh);
