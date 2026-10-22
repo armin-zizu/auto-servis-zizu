@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { Plus, Trash2, Calculator, AlertCircle, FileText, Loader2, Upload, X } from 'lucide-react';
+import { Plus, Trash2, Calculator, AlertCircle, FileText, Loader2, Upload, Camera, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import Tesseract from 'tesseract.js';
 import {
@@ -562,22 +562,39 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                   </p>
                 </div>
               </div>
-              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
-                <Upload size={14} />
-                {estimateImage ? 'Zamijeni sliku' : 'Slikaj / dodaj sliku'}
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="sr-only"
-                  disabled={readingEstimate}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    void handleEstimateUpload(file);
-                    event.currentTarget.value = '';
-                  }}
-                />
-              </label>
+              <div className="flex flex-wrap gap-2">
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary/30 bg-background px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5">
+                  <Upload size={14} />
+                  {estimateImage ? 'Izaberi drugu sliku' : 'Izaberi iz galerije'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={readingEstimate}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      void handleEstimateUpload(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+                  <Camera size={14} />
+                  Slikaj predračun
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    disabled={readingEstimate}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      void handleEstimateUpload(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             {estimateImage && (
