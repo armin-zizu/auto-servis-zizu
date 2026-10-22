@@ -13,7 +13,7 @@ import {
 import { OrderStatus } from '@/components/ui/StatusBadge';
 import { mechanicOptions, useMechanics } from '@/lib/mechanics';
 import { defaultSession, readSession } from '@/lib/session';
-import { parseEstimateText } from '@/lib/estimateParser';
+import { parseEstimateText } from '../../../lib/estimateParser';
 
 async function compressEstimateImage(file: File): Promise<string> {
   try {
@@ -213,7 +213,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       setEstimateParts(parsed);
       setEstimateMessage(
         parsed.length
-          ? `Prepoznato stavki: ${parsed.length}. Provjerite nazive, količine i cijene prije ubacivanja.`
+          ? `Prepoznato stavki: ${parsed.length}. Provjerite naziv/opis i cijenu sa PDV-om. Količina je postavljena na 1; ukupni iznos naloga računa se automatski.`
           : 'Slika je sačuvana, ali stavke nisu jasno prepoznate. Možete ih unijeti ručno.'
       );
     } catch (error) {
@@ -231,13 +231,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     }
   };
 
-  const updateEstimatePart = (id: string, field: 'name' | 'qty' | 'unitCost' | 'category', value: string) => {
+  const updateEstimatePart = (id: string, field: 'name' | 'unitCost' | 'category', value: string) => {
     setEstimateParts((current) =>
       current.map((part) => {
         if (part.id !== id) return part;
         if (field === 'name') return { ...part, name: value };
         if (field === 'category') return { ...part, category: value as 'part' | 'oil' };
-        return { ...part, [field]: Number(value) || 0 };
+        return { ...part, unitCost: Number(value) || 0 };
       })
     );
   };
@@ -558,7 +558,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 <div>
                   <p className="text-sm font-semibold text-foreground">Predračun dijelova</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Slikajte ili odaberite predračun. Prepoznate stavke možete provjeriti i urediti prije dodavanja.
+                    Čitaju se naziv artikla, opis ispod naziva i jedinična cijena sa PDV-om. Količine i zbirni redovi se ignorišu; stavke se dodaju s količinom 1, a zbir se računa automatski.
                   </p>
                 </div>
               </div>
@@ -644,10 +644,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 <table className="w-full min-w-[560px] text-xs">
                   <thead className="bg-muted/40 text-muted-foreground">
                     <tr>
-                      <th className="px-2 py-2 text-left">Naziv</th>
+                      <th className="px-2 py-2 text-left">Naziv / opis ispod naziva</th>
                       <th className="px-2 py-2 text-left">Tip</th>
-                      <th className="w-20 px-2 py-2 text-right">Količina</th>
-                      <th className="w-28 px-2 py-2 text-right">Cijena (KM)</th>
+                      <th className="w-32 px-2 py-2 text-right">Cijena sa PDV (KM)</th>
                       <th className="w-8" />
                     </tr>
                   </thead>
@@ -662,9 +661,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                             <option value="part">Dio</option>
                             <option value="oil">Ulje</option>
                           </select>
-                        </td>
-                        <td className="p-2">
-                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Količina prepoznatog dijela" />
                         </td>
                         <td className="p-2">
                           <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Cijena prepoznatog dijela" />
