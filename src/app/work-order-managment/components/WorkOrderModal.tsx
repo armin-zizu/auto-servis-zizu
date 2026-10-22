@@ -213,7 +213,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       setEstimateParts(parsed);
       setEstimateMessage(
         parsed.length
-          ? `Prepoznato stavki: ${parsed.length}. Provjerite naziv/opis i cijenu sa PDV-om. Količina je postavljena na 1; ukupni iznos naloga računa se automatski.`
+          ? `Prepoznato stavki: ${parsed.length}. Provjerite naziv, količinu i cijenu sa PDV-om prije dodavanja.`
           : 'Slika je sačuvana, ali stavke nisu jasno prepoznate. Možete ih unijeti ručno.'
       );
     } catch (error) {
@@ -231,12 +231,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     }
   };
 
-  const updateEstimatePart = (id: string, field: 'name' | 'unitCost' | 'category', value: string) => {
+  const updateEstimatePart = (id: string, field: 'name' | 'qty' | 'unitCost' | 'category', value: string) => {
     setEstimateParts((current) =>
       current.map((part) => {
         if (part.id !== id) return part;
         if (field === 'name') return { ...part, name: value };
         if (field === 'category') return { ...part, category: value as 'part' | 'oil' };
+        if (field === 'qty') return { ...part, qty: Number(value) || 0 };
         return { ...part, unitCost: Number(value) || 0 };
       })
     );
@@ -558,7 +559,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 <div>
                   <p className="text-sm font-semibold text-foreground">Predračun dijelova</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Čitaju se naziv artikla, opis ispod naziva i jedinična cijena sa PDV-om. Količine i zbirni redovi se ignorišu; stavke se dodaju s količinom 1, a zbir se računa automatski.
+                    Za svaki artikal čitamo naziv/opis, količinu i cijenu sa PDV-om. Iznos reda i zbir dijelova računaju se automatski.
                   </p>
                 </div>
               </div>
@@ -641,12 +642,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                     Ubaci {estimateParts.length} stavki u nalog
                   </button>
                 </div>
-                <table className="w-full min-w-[560px] text-xs">
+                <table className="w-full min-w-[650px] text-xs">
                   <thead className="bg-muted/40 text-muted-foreground">
                     <tr>
-                      <th className="px-2 py-2 text-left">Naziv / opis ispod naziva</th>
+                      <th className="px-2 py-2 text-left">Naziv / opis</th>
                       <th className="px-2 py-2 text-left">Tip</th>
+                      <th className="w-20 px-2 py-2 text-right">Kol.</th>
                       <th className="w-32 px-2 py-2 text-right">Cijena sa PDV (KM)</th>
+                      <th className="w-28 px-2 py-2 text-right">Iznos (KM)</th>
                       <th className="w-8" />
                     </tr>
                   </thead>
@@ -663,7 +666,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </select>
                         </td>
                         <td className="p-2">
-                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Cijena prepoznatog dijela" />
+                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Količina prepoznatog dijela" />
+                        </td>
+                        <td className="p-2">
+                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Cijena prepoznatog dijela sa PDV-om" />
+                        </td>
+                        <td className="p-2 text-right font-medium tabular-nums">
+                          {(part.qty * part.unitCost).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="p-2">
                           <button type="button" onClick={() => setEstimateParts((current) => current.filter((item) => item.id !== part.id))} aria-label={`Ukloni ${part.name}`} className="rounded p-1 text-muted-foreground hover:text-red-600">
@@ -673,6 +682,15 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border bg-muted/30">
+                      <td colSpan={4} className="px-2 py-2 text-right font-semibold">Ukupno dijelovi</td>
+                      <td className="px-2 py-2 text-right font-bold tabular-nums">
+                        {estimateParts.reduce((total, part) => total + part.qty * part.unitCost, 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
