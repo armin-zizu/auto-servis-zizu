@@ -88,12 +88,66 @@ function findQuantity(
   return { qty: 1 };
 }
 
+function categoryForName(name: string): 'part' | 'oil' {
+  return /(motorno\s+ulje|\bulje\b|engine\s+oil|motor\s+oil|\b\d+w[- ]?\d{2}\b)/i.test(name)
+    && !/filter/i.test(name)
+    ? 'oil'
+    : 'part';
+}
+
+/** Parses the fixed MOTOREX-style table with a separate VAT-inclusive column. */
+function parseBosnianColumnEstimate(text: string): PartLineItem[] {
+  const hasColumnHeader = /iznos\s+sa\s+pdv/i.test(text)
+    && /(?:naziv\s+artikla|proizvo[dđ]a[cč]|kol\.?)/i.test(text);
+  if (!hasColumnHeader) return [];
+
+  const rows: PartLineItem[] = [];
+  text.split(/\r?\n/).forEach((sourceLine, index) => {
+    const line = sourceLine.replace(/[|]/g, ' ').replace(/\s+/g, ' ').trim();
+    const unitMatch = /\b(?:KOM\.?|SET|PCS?\.?|KOMAD(?:A)?|JED\.?)[\s,]+(\d+(?:[,.]\d+)?)/i.exec(line);
+    if (!unitMatch || unitMatch.index === undefined) return;
+
+    const prefix = line.slice(0, unitMatch.index).replace(/^\s*\d+[.)]?\s*/, '').trim();
+    const descriptionWords = prefix.split(/\s+/).filter(Boolean);
+    // The column between item name and unit is the manufacturer (e.g. FERODO).
+    if (descriptionWords.length > 1) descriptionWords.pop();
+    const name = descriptionWords.join(' ').trim();
+    const qty = parseMoney(unitMatch[1]);
+
+    const prices = [...line.matchAll(MONEY_TOKEN)].filter((match) => {
+      const tokenIndex = match.index ?? 0;
+      const suffix = line.slice(tokenIndex + match[0].length);
+      return /[,.]\d{1,2}(?:\s?(?:KM|BAM|EUR|USD|\u20ac|\$))?$/i.test(match[0])
+        && !/^\s*%/.test(suffix);
+    });
+    if (!name || name.length < 2 || !Number.isFinite(qty) || qty <= 0 || !prices.length) return;
+
+    // The final amount in this invoice's row is “Iznos sa PDV”; divide by
+    // quantity to store a unit price, while ignoring the ex-VAT columns.
+    const inclusiveRowTotal = parseMoney(prices[prices.length - 1][0]);
+    const unitCost = inclusiveRowTotal / qty;
+    if (!Number.isFinite(unitCost) || unitCost <= 0) return;
+
+    rows.push({
+      id: `estimate-part-${Date.now()}-${index}`,
+      name,
+      qty,
+      unitCost,
+      category: categoryForName(name),
+    });
+  });
+  return rows;
+}
+
 /**
  * Parses each invoice item as name, quantity and VAT-inclusive unit price.
  * Line totals and invoice subtotals are not imported; totals are calculated
  * from quantity × unit price by the work-order form.
  */
 export function parseEstimateText(text: string): PartLineItem[] {
+  const columnRows = parseBosnianColumnEstimate(text);
+  if (columnRows.length) return columnRows;
+
   const rows: PartLineItem[] = [];
   let pendingDescription: string[] = [];
 
@@ -175,10 +229,7 @@ export function parseEstimateText(text: string): PartLineItem[] {
     if (!name || name.length < 2 || !Number.isFinite(unitCost) || unitCost <= 0) return;
     if (/^(?:\d+[\s.,]*)+$/.test(name)) return;
 
-    const category = /(motorno\s+ulje|\bulje\b|engine\s+oil|motor\s+oil|\b\d+w[- ]?\d{2}\b)/i.test(name)
-      && !/filter/i.test(name)
-      ? 'oil'
-      : 'part';
+    const category = categoryForName(name);
 
     rows.push({
       id: `estimate-part-${Date.now()}-${index}`,

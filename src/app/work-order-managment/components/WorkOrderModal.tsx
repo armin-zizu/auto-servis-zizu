@@ -144,7 +144,11 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           discountPct: order.discountPct,
           notes: order.notes,
           parts: order.parts,
-          laborEntries: order.laborEntries,
+          laborEntries: order.laborEntries.map((entry) => ({
+            ...entry,
+            hours: 1,
+            rate: (Number(entry.hours) || 0) * (Number(entry.rate) || 0),
+          })),
         });
       } else {
         reset({
@@ -176,10 +180,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   );
   const discountAmount = rawPartsTotal * ((Number(watchedDiscount) || 0) / 100);
   const partsTotal = rawPartsTotal - discountAmount;
-  const laborTotal = watchedLabor.reduce(
-    (s, l) => s + (Number(l.hours) || 0) * (Number(l.rate) || 0),
-    0
-  );
+  const laborTotal = watchedLabor.reduce((sum, entry) => sum + (Number(entry.rate) || 0), 0);
   const orderTotal = partsTotal + laborTotal;
 
   const handleEstimateUpload = async (file?: File) => {
@@ -280,7 +281,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       mechanicPayoutPct: 0,
       status: data.status,
       parts: data.parts,
-      laborEntries: data.laborEntries,
+      laborEntries: data.laborEntries.map((entry) => ({ ...entry, hours: 1 })),
       discountPct: Number(data.discountPct),
       partsTotal,
       laborTotal,
@@ -949,116 +950,64 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </button>
           </div>
 
-          <p className="sm:hidden mb-2 text-xs text-muted-foreground">
-            Prevucite tabelu lijevo-desno da unesete sate i cijenu.
-          </p>
-          <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full min-w-[650px] sm:min-w-full text-sm">
-              <thead>
-                <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-[260px]">
-                    Opis usluge
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-24">
-                    Sati
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-28">
-                    Cijena/sat
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-28">
-                    Međuzbir
-                  </th>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {laborFields.map((field, idx) => {
-                  const hours = Number(watchedLabor[idx]?.hours) || 0;
-                  const rate = Number(watchedLabor[idx]?.rate) || 0;
-                  const subtotal = hours * rate;
-                  return (
-                    <tr key={field.id} className="hover:bg-muted/20">
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          placeholder="npr. Zamjena sintetičkog ulja"
-                          {...register(`laborEntries.${idx}.description`, {
-                            required: 'Opis je obavezan',
-                          })}
-                          className="w-full min-w-[240px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-                        />
-                        {errors.laborEntries?.[idx]?.description && (
-                          <p className="text-xs text-red-500 mt-0.5">
-                            {errors.laborEntries[idx]?.description?.message}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min={0.25}
-                          step={0.25}
-                          {...register(`laborEntries.${idx}.hours`, {
-                            valueAsNumber: true,
-                            min: 0.25,
-                          })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="relative">
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                            KM
-                          </span>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            min={0}
-                            step={5}
-                            {...register(`laborEntries.${idx}.rate`, {
-                              valueAsNumber: true,
-                              min: 0,
-                            })}
-                            className="w-full pl-2 pr-8 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
-                          />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <span className="text-sm font-medium text-foreground tabular-nums">
-                          {subtotal.toFixed(2)} KM
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => removeLabor(idx)}
-                          disabled={laborFields.length === 1}
-                          className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Ukloni stavku rada"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-muted/50 border-t-2 border-border">
-                  <td
-                    colSpan={3}
-                    className="px-3 py-2 text-xs font-semibold text-foreground text-right"
+          <div className="overflow-hidden rounded-lg border border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_104px_36px] items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">Opis usluge</span>
+              <span className="text-right text-xs font-medium text-muted-foreground">Cijena</span>
+              <span />
+            </div>
+            <div className="divide-y divide-border">
+              {laborFields.map((field, idx) => (
+                <div key={field.id} className="grid grid-cols-[minmax(0,1fr)_104px_36px] items-start gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <input
+                      type="text"
+                      placeholder="npr. Zamjena sintetičkog ulja"
+                      {...register(`laborEntries.${idx}.description`, {
+                        required: 'Opis je obavezan',
+                      })}
+                      className="w-full min-w-0 px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                    />
+                    {errors.laborEntries?.[idx]?.description && (
+                      <p className="text-xs text-red-500 mt-0.5">
+                        {errors.laborEntries[idx]?.description?.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                      KM
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={1}
+                      {...register(`laborEntries.${idx}.rate`, {
+                        valueAsNumber: true,
+                        min: 0,
+                      })}
+                      className="w-full min-w-0 pl-2 pr-8 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLabor(idx)}
+                    disabled={laborFields.length === 1}
+                    className="justify-self-center p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Ukloni stavku rada"
                   >
-                    Ukupno rad
-                  </td>
-                  <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-foreground">
-                    {laborTotal.toFixed(2)} KM
-                  </td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t-2 border-border bg-muted/50 px-3 py-2">
+              <span className="text-xs font-semibold text-foreground">Ukupno rad</span>
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                {laborTotal.toFixed(2)} KM
+              </span>
+            </div>
           </div>
         </section>
 

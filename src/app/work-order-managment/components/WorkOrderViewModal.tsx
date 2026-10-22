@@ -89,8 +89,8 @@ export default function WorkOrderViewModal({
             ${order.parts.map((part) => `<tr><td>${escapeHtml(part.name)}${part.category === 'oil' ? ' <span class="muted">(ulje)</span>' : ''}</td><td>${part.qty}</td><td>${money(part.unitCost)}</td><td>${money(part.qty * part.unitCost)}</td></tr>`).join('')}
           </tbody></table>
           <h2>Rad</h2>
-          <table><thead><tr><th>Usluga</th><th>Sati</th><th>Cijena/sat</th><th>Međuzbir</th></tr></thead><tbody>
-            ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${entry.hours}</td><td>${money(entry.rate)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
+          <table><thead><tr><th>Opis usluge</th><th>Cijena</th></tr></thead><tbody>
+            ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
           </tbody></table>
           <div class="total">
             <div><span>Dijelovi</span><strong>${money(order.partsTotal)}</strong></div>
@@ -335,13 +335,7 @@ export default function WorkOrderViewModal({
                       Usluga
                     </th>
                     <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                      Sati
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
                       Cijena
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                      Međuzbir
                     </th>
                   </tr>
                 </thead>
@@ -350,12 +344,6 @@ export default function WorkOrderViewModal({
                     <tr key={entry.id} className="hover:bg-muted/20">
                       <td className="px-4 py-2.5 text-foreground">{entry.description}</td>
                       <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                        {entry.hours}h
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                        {entry.rate} KM/sat
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
                         {(entry.hours * entry.rate).toFixed(2)} KM
                       </td>
                     </tr>
@@ -364,7 +352,7 @@ export default function WorkOrderViewModal({
                 <tfoot>
                   <tr className="border-t-2 border-border bg-muted/30">
                     <td
-                      colSpan={3}
+                      colSpan={1}
                       className="px-4 py-2.5 text-xs font-semibold text-right text-foreground"
                     >
                       Ukupno rad
