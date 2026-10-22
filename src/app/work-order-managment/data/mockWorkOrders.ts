@@ -54,14 +54,13 @@ export interface WorkOrder {
 function calcOrder(
   parts: PartLineItem[],
   laborEntries: LaborEntry[],
-  discountPct: number,
-  mechanicPayoutPct: number
+  discountPct: number
 ) {
   const rawParts = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
   const partsTotal = rawParts * (1 - discountPct / 100);
   const laborTotal = laborEntries.reduce((s, l) => s + l.hours * l.rate, 0);
   const orderTotal = partsTotal + laborTotal;
-  const mechanicPayout = laborTotal * (mechanicPayoutPct / 100);
+  const mechanicPayout = 0;
   return { partsTotal, laborTotal, orderTotal, mechanicPayout };
 }
 
@@ -399,7 +398,7 @@ const orders: Omit<
 ];
 
 export const mockWorkOrders: WorkOrder[] = orders.map((o) => {
-  const calcs = calcOrder(o.parts, o.laborEntries, o.discountPct, o.mechanicPayoutPct);
+  const calcs = calcOrder(o.parts, o.laborEntries, o.discountPct);
   return {
     ...o,
     vehicle: `${o.vehicleYear} ${o.vehicleMake} ${o.vehicleModel}`,

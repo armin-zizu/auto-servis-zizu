@@ -390,7 +390,7 @@ export default function WorkOrderViewModal({
                   {order.partsPurchaseCost.toFixed(2)} KM
                 </p>
                 <p className="text-xs text-orange-600 mt-1">
-                  Popust dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
+                  Vaš rabat: dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
                   {order.supplierOilDiscountPct ?? 0}%
                 </p>
               </div>
@@ -410,7 +410,7 @@ export default function WorkOrderViewModal({
                 <p
                   className={`text-xs mt-1 ${order.serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
                 >
-                  Nakon nabavke i isplate majstoru
+                  Rad + ostvareni rabat; bez ručno unesenih isplata
                 </p>
               </div>
             </div>

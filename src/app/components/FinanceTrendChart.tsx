@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CartesianGrid,
   Legend,
@@ -12,8 +12,15 @@ import {
   YAxis,
 } from 'recharts';
 import { WorkOrder, ORDERS_STORAGE_KEY } from '@/app/work-order-managment/data/mockWorkOrders';
-import { readCache } from '@/lib/syncStore';
-import { PeriodFilter, orderFinanceDate, orderInPeriod } from '@/lib/financeData';
+import { readCache, SYNC_EVENT } from '@/lib/syncStore';
+import {
+  PeriodFilter,
+  PayoutRecord,
+  orderFinanceDate,
+  orderInPeriod,
+  orderPartsCost,
+  orderPartsRebate,
+} from '@/lib/financeData';
 
 interface FinanceTrendChartProps {
   period: PeriodFilter;
@@ -83,10 +90,30 @@ const CustomTooltip = ({
   );
 };
 
-/** Daily line chart of revenue, parts cost, mechanic payouts and profit. */
+function orderDateInPeriod(date: string, period: PeriodFilter): boolean {
+  if (period.mode === 'month') return date.slice(0, 7) === period.month;
+  if (period.from && date < period.from) return false;
+  if (period.to && date > period.to) return false;
+  return true;
+}
+
+/** Daily line chart of income, parts cost, manually entered payouts and result. */
 export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
+  const [version, setVersion] = useState(0);
+
+  useEffect(() => {
+    const refresh = () => setVersion((value) => value + 1);
+    window.addEventListener(SYNC_EVENT, refresh);
+    window.addEventListener('storage', refresh);
+    return () => {
+      window.removeEventListener(SYNC_EVENT, refresh);
+      window.removeEventListener('storage', refresh);
+    };
+  }, []);
+
   const data = useMemo(() => {
     const orders = readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []);
+    const payouts = readCache<PayoutRecord[]>('autoservis-payouts', []);
     const days = buildDays(period);
     if (days.length === 0) return [];
 
@@ -99,13 +126,23 @@ export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
       if (!orderInPeriod(order, period)) return;
       const bucket = byDay.get(orderFinanceDate(order));
       if (!bucket) return;
-      const revenue = Number(order.orderTotal) || 0;
-      const partsCost = Number(order.partsPurchaseCost ?? order.partsTotal) || 0;
-      const payout = Number(order.mechanicPayout) || 0;
+      const revenue = (Number(order.laborTotal) || 0) + orderPartsRebate(order);
+      const partsCost = orderPartsCost(order);
       bucket.revenue += revenue;
       bucket.partsCost += partsCost;
-      bucket.payouts += payout;
-      bucket.profit += revenue - partsCost - payout;
+    });
+
+    payouts.forEach((payout) => {
+      if (!payout.date || !orderDateInPeriod(payout.date, period)) return;
+      const bucket = byDay.get(payout.date);
+      if (!bucket) return;
+      const amount = Number(payout.amount) || 0;
+      bucket.payouts += amount;
+      bucket.profit -= amount;
+    });
+
+    byDay.forEach((bucket) => {
+      bucket.profit += bucket.revenue;
     });
 
     return days.map((day) => {
@@ -116,7 +153,7 @@ export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
         label: new Intl.DateTimeFormat('bs-BA', { day: 'numeric', month: 'short' }).format(date),
       };
     });
-  }, [period]);
+  }, [period, version]);
 
   if (data.length === 0) {
     return (
@@ -131,7 +168,7 @@ export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
       <div className="mb-4">
         <h3 className="text-base font-semibold text-foreground">Kretanje po danima</h3>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Prihod · trošak dijelova · isplate majstorima · dobit
+          Prihod (rad + rabat) · trošak dijelova · ručne isplate · rezultat
         </p>
       </div>
       <ResponsiveContainer width="100%" height={280}>

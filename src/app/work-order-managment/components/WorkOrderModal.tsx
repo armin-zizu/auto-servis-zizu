@@ -13,7 +13,6 @@ import { OrderStatus } from '@/components/ui/StatusBadge';
 import { mechanicOptions, useMechanics } from '@/lib/mechanics';
 import { defaultSession, readSession } from '@/lib/session';
 
-const FIXED_MECHANIC_PAYOUT_PCT = 10;
 const STATUSES: OrderStatus[] = [
   'Otvoren',
   'U toku',
@@ -32,7 +31,6 @@ interface FormValues {
   vehicleModel: string;
   vehicleVin: string;
   mechanic: string;
-  mechanicPayoutPct: number;
   status: OrderStatus;
   discountPct: number;
   notes: string;
@@ -77,7 +75,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       vehicleModel: '',
       vehicleVin: '',
       mechanic: '',
-      mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
       status: 'Otvoren',
       discountPct: 0,
       notes: '',
@@ -111,7 +108,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           vehicleModel: order.vehicleModel,
           vehicleVin: order.vehicleVin,
           mechanic: order.mechanic,
-          mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
           status: order.status,
           discountPct: order.discountPct,
           notes: order.notes,
@@ -128,7 +124,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           vehicleModel: '',
           vehicleVin: '',
           mechanic: defaultMechanicName,
-          mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
           status: 'Otvoren',
           discountPct: 0,
           notes: '',
@@ -142,7 +137,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   const watchedParts = watch('parts');
   const watchedLabor = watch('laborEntries');
   const watchedDiscount = watch('discountPct');
-  const watchedPayoutPct = watch('mechanicPayoutPct');
 
   const rawPartsTotal = watchedParts.reduce(
     (s, p) => s + (Number(p.qty) || 0) * (Number(p.unitCost) || 0),
@@ -155,7 +149,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     0
   );
   const orderTotal = partsTotal + laborTotal;
-  const mechanicPayout = laborTotal * ((Number(watchedPayoutPct) || 0) / 100);
 
   const onSubmit = async (data: FormValues) => {
     setSaving(true);
@@ -174,7 +167,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       vehicleVin: data.vehicleVin,
       vehicle: `${data.vehicleYear} ${data.vehicleMake} ${data.vehicleModel}`,
       mechanic: data.mechanic,
-      mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
+      mechanicPayoutPct: 0,
       status: data.status,
       parts: data.parts,
       laborEntries: data.laborEntries,
@@ -182,7 +175,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       partsTotal,
       laborTotal,
       orderTotal,
-      mechanicPayout,
+      mechanicPayout: 0,
       notes: data.notes,
       createdBy: order?.createdBy ?? session.userName,
       createdByRole: order?.createdByRole ?? session.userRole,

@@ -1,9 +1,8 @@
 import React from 'react';
 import AppLayout from '@/components/AppLayout';
-import BonusPayoutReminder from './components/BonusPayoutReminder';
-import MetricsBentoGrid from './components/MetricsBentoGrid';
+import MetricsBentoGrid from '@/app/components/MetricsBentoGrid';
 import RecentOrdersTable from './components/RecentOrdersTable';
-import MechanicPayoutList from './components/MechanicPayoutList';
+import MechanicPayoutList from '@/app/components/MechanicPayoutList';
 import DashboardChartsRow from './components/DashboardChartsRow';
 
 // Backend integration point: fetch dashboard summary data from API
@@ -26,9 +25,6 @@ export default function DashboardPage() {
             </span>
           </div>
         </div>
-
-        {/* Friday bonus payout reminder */}
-        <BonusPayoutReminder />
 
         {/* KPI Bento Grid */}
         <MetricsBentoGrid />

@@ -27,6 +27,7 @@ import {
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
+import { orderFinanceDate } from '@/lib/financeData';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -73,6 +74,9 @@ export default function WorkOrdersClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [financeFilter, setFinanceFilter] = useState('');
   // Becomes true once the initial pull from Supabase has resolved. Until then
   // persistOrders is a no-op so a stale/empty local list can never overwrite
   // the shared server copy (this is what made orders "disappear" between
@@ -118,9 +122,12 @@ export default function WorkOrdersClient() {
     setActiveOnly(status === 'active');
     if (status && status !== 'active' && ALL_STATUSES.includes(status as OrderStatus)) {
       setStatusFilter(status as OrderStatus);
-    } else if (status === 'active') {
+    } else {
       setStatusFilter('Svi');
     }
+    setDateFrom(searchParams.get('from') || '');
+    setDateTo(searchParams.get('to') || '');
+    setFinanceFilter(searchParams.get('finance') || '');
   }, [searchParams]);
 
   useEffect(() => {
@@ -154,6 +161,17 @@ export default function WorkOrdersClient() {
     if (activeOnly) {
       result = result.filter((o) => o.status !== 'Zatvoren' && o.status !== 'Otkazan');
     }
+    if (dateFrom || dateTo) {
+      result = result.filter((order) => {
+        const date = orderFinanceDate(order);
+        return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+      });
+    }
+    if (financeFilter === 'parts') {
+      result = result.filter((order) => order.parts.length > 0 && Number(order.partsTotal) > 0);
+    } else if (financeFilter === 'labor') {
+      result = result.filter((order) => Number(order.laborTotal) > 0);
+    }
     if (mechanicFilter !== 'Svi') {
       result = result.filter((o) => o.mechanic === mechanicFilter);
     }
@@ -170,7 +188,30 @@ export default function WorkOrdersClient() {
       });
     }
     return result;
-  }, [orders, search, statusFilter, activeOnly, mechanicFilter, sortKey, sortDir]);
+  }, [orders, search, statusFilter, activeOnly, dateFrom, dateTo, financeFilter, mechanicFilter, sortKey, sortDir]);
+
+  const localIsoDate = (date: Date) => {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 10);
+  };
+  const setRecentRange = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - days + 1);
+    setDateFrom(localIsoDate(from));
+    setDateTo(localIsoDate(to));
+    setFinanceFilter('');
+    setPage(1);
+  };
+  const setWeekRange = () => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - ((to.getDay() + 6) % 7));
+    setDateFrom(localIsoDate(from));
+    setDateTo(localIsoDate(to));
+    setFinanceFilter('');
+    setPage(1);
+  };
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -286,8 +327,12 @@ export default function WorkOrdersClient() {
       const discountPct = part.category === 'oil' ? oilDiscountPct : partsDiscountPct;
       return total + lineTotal * (1 - discountPct / 100);
     }, 0);
-    const serviceProfit =
-      completingOrder.orderTotal - partsPurchaseCost - completingOrder.mechanicPayout;
+    const rawPartsTotal = completingOrder.parts.reduce(
+      (total, part) => total + part.qty * part.unitCost,
+      0
+    );
+    const earnedRebate = rawPartsTotal - partsPurchaseCost;
+    const serviceProfit = completingOrder.laborTotal + earnedRebate;
     const updatedOrder: WorkOrder = {
       ...completingOrder,
       status: 'Zatvoren',
@@ -330,6 +375,19 @@ export default function WorkOrdersClient() {
       {/* Traka filtera */}
       <div className="bg-card border border-border rounded-xl shadow-card mb-4">
         <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap w-full">
+            <span className="text-xs font-medium text-muted-foreground mr-1">Period:</span>
+            <button type="button" onClick={setWeekRange} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Ova sedmica</button>
+            <button type="button" onClick={() => setRecentRange(15)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 15 dana</button>
+            <button type="button" onClick={() => setRecentRange(30)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 30 dana</button>
+            <label className="text-xs text-muted-foreground flex items-center gap-1 ml-auto">Od
+              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg" />
+            </label>
+            <label className="text-xs text-muted-foreground flex items-center gap-1">Do
+              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg" />
+            </label>
+            {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setFinanceFilter(''); setPage(1); }} className="px-2 py-1.5 text-xs text-primary hover:underline">Očisti period</button>}
+          </div>
           {/* Pretraga */}
           <div className="relative flex-1 min-w-[200px]">
             <Search

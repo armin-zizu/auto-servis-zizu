@@ -1,364 +1,180 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { readCache, SYNC_EVENT } from '@/lib/syncStore';
-import { WEEKLY_BONUSES_STORAGE_KEY } from '@/lib/weeklyBonuses';
 import {
-  ClipboardList,
   CheckCircle2,
+  ClipboardList,
   DollarSign,
   Package,
-  Wrench,
   TrendingUp,
-  TrendingDown,
-  AlertCircle,
-  Zap,
+  Users,
 } from 'lucide-react';
+import FinancePeriodPicker from '@/app/components/FinancePeriodPicker';
+import {
+  PeriodFilter,
+  orderInPeriod,
+  useFinanceSummary,
+} from '@/lib/financeData';
+import { ORDERS_STORAGE_KEY, WorkOrder } from '@/app/work-order-managment/data/mockWorkOrders';
+import { readCache, SYNC_EVENT } from '@/lib/syncStore';
 
 interface MetricCardData {
   id: string;
   label: string;
   value: string;
-  subValue?: string;
-  trend?: number;
-  trendLabel?: string;
+  subValue: string;
   icon: React.ReactNode;
-  variant: 'default' | 'alert' | 'positive' | 'warning' | 'hero';
-  colSpan?: number;
+  style: string;
+  iconStyle: string;
   href: string;
+  highlighted?: boolean;
 }
 
-const metrics: MetricCardData[] = [
-  {
-    id: 'open-orders',
-    label: 'Otvoreni nalozi',
-    value: '14',
-    subValue: '3 čekaju dijelove',
-    trend: 2,
-    trendLabel: 'vs jučer',
-    icon: <ClipboardList size={22} />,
-    variant: 'hero',
-    colSpan: 2,
-    href: '/work-order-managment?status=active',
-  },
-  {
-    id: 'revenue-mtd',
-    label: 'Prihod MTD',
-    value: '24,810 KM',
-    subValue: 'Aug 1–5',
-    trend: 8.3,
-    trendLabel: 'vs prošli mjesec',
-    icon: <DollarSign size={22} />,
-    variant: 'positive',
-    href: '/finansije/prihodi?period=mtd',
-  },
-  {
-    id: 'profit-mtd',
-    label: 'Dobit MTD',
-    value: '15,468 KM',
-    subValue: 'Nakon nabavne cijene dijelova',
-    icon: <TrendingUp size={22} />,
-    variant: 'positive',
-    href: '/finansije',
-  },
-  {
-    id: 'closed-today',
-    label: 'Zatvoreno MTD',
-    value: '6',
-    subValue: 'naloga završeno',
-    trend: -1,
-    trendLabel: 'vs jučer',
-    icon: <CheckCircle2 size={22} />,
-    variant: 'default',
-    href: '/work-order-managment?status=Zatvoren',
-  },
-  {
-    id: 'parts-cost-mtd',
-    label: 'Trošak dijelova MTD',
-    value: '9,342 KM',
-    subValue: '37.6% od prihoda',
-    trend: 12.1,
-    trendLabel: 'vs prošli mjesec',
-    icon: <Package size={22} />,
-    variant: 'default',
-    href: '/finansije/troskovi?period=mtd',
-  },
-  {
-    id: 'labor-revenue',
-    label: 'Naplata rada MTD',
-    value: '15,468 KM',
-    subValue: '62.4% od prihoda',
-    trend: 5.9,
-    trendLabel: 'vs prošli mjesec',
-    icon: <Wrench size={22} />,
-    variant: 'positive',
-    href: '/finansije/prihodi?period=mtd&type=labor',
-  },
-  {
-    id: 'mechanic-payouts',
-    label: 'Isplate majstorima',
-    value: '4,218 KM',
-    subValue: '4 majstora · neisplaćeno',
-    trend: undefined,
-    trendLabel: 'potrebna pažnja',
-    icon: <AlertCircle size={22} />,
-    variant: 'alert',
-    href: '/finansije?section=isplate',
-  },
-];
-
-interface DashboardOrder {
-  mechanic: string;
-  status: string;
-  partsTotal: number;
-  laborTotal: number;
-  orderTotal: number;
-  partsPurchaseCost?: number;
-}
-
-interface DashboardPayout {
-  amount: number;
-  paid: boolean;
-}
-
-interface DashboardSalary {
-  amount: number;
-  paid: boolean;
-}
-
-interface DashboardBonus {
-  mechanic: string;
-  amount: number;
-  paid: boolean;
-}
-
-function readDashboardData() {
-  try {
-    const storedOrders = readCache<DashboardOrder[] | null>('autoservis-work-orders', null);
-    const storedPayouts = readCache<DashboardPayout[] | null>('autoservis-payouts', null);
-    const storedSalaries = readCache<DashboardSalary[] | null>('autoservis-salaries', null);
-    const storedBonuses = readCache<DashboardBonus[] | null>(WEEKLY_BONUSES_STORAGE_KEY, null);
-    if (!storedOrders && !storedPayouts && !storedSalaries && !storedBonuses) return {};
-    const session = JSON.parse(window.sessionStorage.getItem('autoservis-session') || window.localStorage.getItem('autoservis-session') || 'null') as { userRole?: string; userName?: string } | null;
-const allOrders = (storedOrders || []) as DashboardOrder[];
-    const allPayouts = (storedPayouts || []) as (DashboardPayout & { name?: string })[];
-    const allSalaries = (storedSalaries || []) as (DashboardSalary & { name?: string })[];
-    const allBonuses = (storedBonuses || []) as DashboardBonus[];
-    const isMechanic = session?.userRole === 'mechanic';
-    const orders = isMechanic ? allOrders.filter((order) => order.mechanic === session?.userName) : allOrders;
-    const payouts = isMechanic ? allPayouts.filter((payout) => payout.name === session?.userName) : allPayouts;
-    const salaries = isMechanic ? allSalaries.filter((salary) => salary.name === session?.userName) : allSalaries;
-    const bonuses = isMechanic ? allBonuses.filter((bonus) => bonus.mechanic === session?.userName) : allBonuses;
-    const activeOrders = orders.filter((order) => order.status !== 'Zatvoren' && order.status !== 'Otkazan');
-    const closedOrders = orders.filter((order) => order.status === 'Zatvoren');
-    const revenue = orders.reduce((sum, order) => sum + Number(order.orderTotal || 0), 0);
-    const parts = orders.reduce((sum, order) => sum + Number(order.partsTotal || 0), 0);
-    const labor = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0), 0);
-    const mechanicShare = orders.reduce((sum, order) => sum + Number(order.laborTotal || 0) * 0.1, 0);
-    const partsPurchaseCost = orders.reduce(
-      (sum, order) => sum + Number(order.partsPurchaseCost ?? order.partsTotal ?? 0),
-      0
-    );
-    const profit = revenue - partsPurchaseCost - mechanicShare;
-    const unpaid = payouts.filter((payout) => !payout.paid).reduce((sum, payout) => sum + Number(payout.amount || 0), 0)
-      + salaries.filter((salary) => !salary.paid).reduce((sum, salary) => sum + Number(salary.amount || 0), 0)
-      + bonuses.filter((bonus) => !bonus.paid).reduce((sum, bonus) => sum + Number(bonus.amount || 0), 0);
-    const formatKm = (value: number) => `${Math.round(value).toLocaleString()} KM`;
-    const revenuePercent = revenue ? `${((labor / revenue) * 100).toFixed(1)}% od prihoda` : '0% od prihoda';
-
-    return {
-      'open-orders': { value: String(activeOrders.length), subValue: `${activeOrders.filter((order) => order.status === 'Čeka dijelove').length} čekaju dijelove` },
-      'revenue-mtd': { value: formatKm(revenue), subValue: 'Sačuvani radni nalozi' },
-      'profit-mtd': { value: formatKm(profit), subValue: 'Nakon dijelova i 10% za majstore' },
-      'closed-today': { value: String(closedOrders.length), subValue: 'zatvorenih naloga' },
-      'parts-cost-mtd': { value: formatKm(parts), subValue: revenue ? `${((parts / revenue) * 100).toFixed(1)}% od prihoda` : '0% od prihoda' },
-      'labor-revenue': { value: formatKm(labor - mechanicShare), subValue: 'Nakon 10% za majstore' },
-      'mechanic-payouts': {
-        value: formatKm(unpaid),
-        subValue: unpaid > 0
-          ? `${payouts.filter((payout) => !payout.paid).length + salaries.filter((salary) => !salary.paid).length} neisplaćenih stavki`
-          : 'Sve isplaćeno',
-        trendLabel: unpaid > 0 ? 'potrebna pažnja' : 'sve riješeno',
-        variant: unpaid > 0 ? 'alert' : 'positive',
-        icon: unpaid > 0 ? <AlertCircle size={22} /> : <CheckCircle2 size={22} />,
-      },
-    } as Record<string, Partial<MetricCardData>>;
-  } catch {
-    return {};
+function periodQuery(period: PeriodFilter, status: string, finance?: string): string {
+  const params = new URLSearchParams({ status });
+  let from = period.from;
+  let to = period.to;
+  if (period.mode === 'month' && period.month) {
+    const [year, month] = period.month.split('-').map(Number);
+    from = `${period.month}-01`;
+    to = `${period.month}-${String(new Date(year, month, 0).getDate()).padStart(2, '0')}`;
   }
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  if (finance) params.set('finance', finance);
+  return `/work-order-managment?${params.toString()}`;
 }
-
-// Grid plan: 7 cards → grid-cols-4
-// Row 1: hero (col-span-2) + 2 regular cards = 4 cols
-// Row 2: 3 regular cards (last spans 2 to fill) — actually 4 regular cards across 2 rows
-// Adjusted: hero(2) + card + card = row1(4); card + card + card(2) = row2(5)→ hero(2)+card+card / card+card+card+card
-// Final: hero spans 2, remaining 6 cards fill 3+3 across rows 2-3
 
 function MetricCard({ metric }: { metric: MetricCardData }) {
-  const variantStyles: Record<string, string> = {
-    hero: 'bg-primary text-primary-foreground',
-    alert: 'bg-amber-50 border-amber-200',
-    positive: 'bg-emerald-50 border-emerald-200',
-    warning: 'bg-orange-50 border-orange-200',
-    default: 'bg-card border-border',
-  };
-
-  const iconStyles: Record<string, string> = {
-    hero: 'bg-white/20 text-white',
-    alert: 'bg-amber-100 text-amber-700',
-    positive: 'bg-emerald-100 text-emerald-700',
-    warning: 'bg-orange-100 text-orange-700',
-    default: 'bg-muted text-primary',
-  };
-
-  const labelStyles: Record<string, string> = {
-    hero: 'text-primary-foreground/70',
-    alert: 'text-amber-700',
-    positive: 'text-emerald-700',
-    warning: 'text-orange-700',
-    default: 'text-muted-foreground',
-  };
-
-  const valueStyles: Record<string, string> = {
-    hero: 'text-white',
-    alert: 'text-amber-900',
-    positive: 'text-emerald-900',
-    warning: 'text-orange-900',
-    default: 'text-foreground',
-  };
-
-  const subStyles: Record<string, string> = {
-    hero: 'text-primary-foreground/60',
-    alert: 'text-amber-600',
-    positive: 'text-emerald-600',
-    warning: 'text-orange-600',
-    default: 'text-muted-foreground',
-  };
-
-  const isPositiveTrend = metric.trend !== undefined && metric.trend > 0;
-  const isNegativeTrend = metric.trend !== undefined && metric.trend < 0;
-
   return (
     <Link
       href={metric.href}
-      className={`rounded-xl border shadow-card p-5 flex flex-col gap-4 h-full transition-shadow duration-200 hover:shadow-card-hover
-        ${variantStyles[metric.variant]}
-        ${metric.colSpan === 2 ? 'col-span-1 md:col-span-2' : ''}
-      `}
+      className={`rounded-xl border shadow-card p-5 flex flex-col gap-4 h-full min-h-40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover focus:outline-none focus:ring-2 focus:ring-ring ${metric.style} ${metric.highlighted ? 'text-primary-foreground' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div
-          className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${iconStyles[metric.variant]}`}
-        >
+        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${metric.iconStyle} ${metric.highlighted ? 'bg-white/20 text-white' : ''}`}>
           {metric.icon}
         </div>
-        {metric.variant === 'alert' && (
-          <span className="text-xs font-semibold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full animate-pulse">
-            Potrebna akcija
-          </span>
-        )}
+        <span className={`text-xs ${metric.highlighted ? 'text-white/70' : 'text-muted-foreground'}`}>Otvori naloge →</span>
       </div>
-
       <div>
-        <p
-          className={`text-xs font-medium uppercase tracking-wide mb-1 ${labelStyles[metric.variant]}`}
-        >
-          {metric.label}
-        </p>
-        <p
-          className={`text-3xl font-bold tabular-nums leading-none ${valueStyles[metric.variant]}`}
-        >
-          {metric.value}
-        </p>
-        {metric.subValue && (
-          <p className={`text-xs mt-1.5 ${subStyles[metric.variant]}`}>
-            {metric.subValue}
-          </p>
-        )}
+        <p className={`text-xs font-medium uppercase tracking-wide mb-1 ${metric.highlighted ? 'text-white/75' : 'text-muted-foreground'}`}>{metric.label}</p>
+        <p className={`text-3xl font-bold tabular-nums leading-none ${metric.highlighted ? 'text-white' : 'text-foreground'}`}>{metric.value}</p>
+        <p className={`text-xs mt-1.5 ${metric.highlighted ? 'text-white/75' : 'text-muted-foreground'}`}>{metric.subValue}</p>
       </div>
-
-      {(metric.trend !== undefined || metric.trendLabel) && (
-        <div className="flex items-center gap-1.5 mt-auto">
-          {metric.trend !== undefined ? (
-            <>
-              {isPositiveTrend ? (
-                <TrendingUp
-                  size={14}
-                  className={
-                    metric.variant === 'hero' ?'text-white/70' :'text-emerald-600'
-                  }
-                />
-              ) : isNegativeTrend ? (
-                <TrendingDown
-                  size={14}
-                  className={
-                    metric.variant === 'hero' ? 'text-white/70' : 'text-red-500'
-                  }
-                />
-              ) : null}
-              <span
-                className={`text-xs font-medium tabular-nums ${
-                  metric.variant === 'hero' ?'text-white/70'
-                    : isPositiveTrend
-                    ? 'text-emerald-600' :'text-red-500'
-                }`}
-              >
-                {metric.trend > 0 ? '+' : ''}
-                {metric.trend}%
-              </span>
-            </>
-          ) : null}
-          {metric.trendLabel && (
-            <span
-              className={`text-xs ${
-                metric.variant === 'hero' ?'text-primary-foreground/50' :'text-muted-foreground'
-              }`}
-            >
-              {metric.trendLabel}
-            </span>
-          )}
-        </div>
-      )}
     </Link>
   );
 }
 
 export default function MetricsBentoGrid() {
-  // Grid plan: 7 cards
-  // Row 1: hero card (col-span-2) + 2 regular = 4 cols filled
-  // Row 2: 3 regular cards + 1 regular = 4 cols filled
-  // hero is first in array (col-span-2), then 6 remaining fill 2 rows of 3
+  const [period, setPeriod] = useState<PeriodFilter>({
+    mode: 'month',
+    month: new Date().toISOString().slice(0, 7),
+  });
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
+  const finance = useFinanceSummary(period);
 
-  const [dynamicMetrics, setDynamicMetrics] = useState<Record<string, Partial<MetricCardData>>>({});
-
-useEffect(() => {
-    const refresh = () => setDynamicMetrics(readDashboardData());
+  useEffect(() => {
+    const refresh = () => setOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
     refresh();
-    window.addEventListener('storage', refresh);
     window.addEventListener(SYNC_EVENT, refresh);
+    window.addEventListener('storage', refresh);
     return () => {
-      window.removeEventListener('storage', refresh);
       window.removeEventListener(SYNC_EVENT, refresh);
+      window.removeEventListener('storage', refresh);
     };
   }, []);
 
-  const liveMetrics = metrics.map((metric) => ({ ...metric, ...dynamicMetrics[metric.id] }));
-  const heroCard = liveMetrics[0];
-  const remainingCards = liveMetrics.slice(1);
+  const { activeCount, closedCount } = useMemo(() => {
+    const active = orders.filter((order) => order.status !== 'Zatvoren' && order.status !== 'Otkazan');
+    const closed = orders.filter(
+      (order) => order.status === 'Zatvoren' && orderInPeriod(order, period)
+    );
+    return { activeCount: active.length, closedCount: closed.length };
+  }, [orders, period]);
+
+  const formatKm = (value: number) =>
+    `${value.toLocaleString('bs-BA', { maximumFractionDigits: 2 })} KM`;
+  const currentOrdersHref = periodQuery(period, 'Zatvoren');
+  const cards: MetricCardData[] = [
+    {
+      id: 'open-orders',
+      label: 'Aktivni nalozi',
+      value: String(activeCount),
+      subValue: 'Nisu zatvoreni ili otkazani',
+      icon: <ClipboardList size={21} />,
+      style: 'bg-primary border-primary',
+      iconStyle: '',
+      href: '/work-order-managment?status=active',
+      highlighted: true,
+    },
+    {
+      id: 'revenue',
+      label: 'Prihod',
+      value: formatKm(finance.revenue),
+      subValue: 'Rad + ostvareni rabat na dijelove i ulje',
+      icon: <DollarSign size={21} />,
+      style: 'bg-emerald-50 border-emerald-200',
+      iconStyle: 'bg-emerald-100 text-emerald-700',
+      href: currentOrdersHref,
+    },
+    {
+      id: 'parts-cost',
+      label: 'Trošak dijelova i ulja',
+      value: formatKm(finance.partsCost),
+      subValue: 'Nakon odbitka rabata',
+      icon: <Package size={21} />,
+      style: 'bg-amber-50 border-amber-200',
+      iconStyle: 'bg-amber-100 text-amber-700',
+      href: periodQuery(period, 'Zatvoren', 'parts'),
+    },
+    {
+      id: 'payouts',
+      label: 'Ručno unesene isplate',
+      value: formatKm(finance.mechanicEarnings),
+      subValue: `${formatKm(finance.unpaidPayouts)} neisplaćeno`,
+      icon: <Users size={21} />,
+      style: 'bg-blue-50 border-blue-200',
+      iconStyle: 'bg-blue-100 text-blue-700',
+      href: '/finansije#isplate',
+    },
+    {
+      id: 'result',
+      label: 'Rezultat nakon isplata',
+      value: formatKm(finance.operatingProfit),
+      subValue: 'Prihod umanjen za ručne isplate',
+      icon: <TrendingUp size={21} />,
+      style: 'bg-violet-50 border-violet-200',
+      iconStyle: 'bg-violet-100 text-violet-700',
+      href: currentOrdersHref,
+    },
+    {
+      id: 'closed-orders',
+      label: 'Zatvoreni nalozi',
+      value: String(closedCount),
+      subValue: 'U odabranom periodu',
+      icon: <CheckCircle2 size={21} />,
+      style: 'bg-card border-border',
+      iconStyle: 'bg-muted text-primary',
+      href: currentOrdersHref,
+    },
+  ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Hero card */}
-      <div className="col-span-1 sm:col-span-2 lg:col-span-2">
-        <MetricCard metric={heroCard} />
-      </div>
-      {/* Remaining 6 cards across remaining 2 cols in row 1 + full row 2 */}
-      {remainingCards.map((metric) => (
-        <div key={metric.id} className="col-span-1">
-          <MetricCard metric={metric} />
+    <section className="space-y-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Pregled poslovanja</h2>
+          <p className="text-xs text-muted-foreground">Finansije i zatvoreni nalozi za isti period</p>
         </div>
-      ))}
-    </div>
+      </div>
+      <FinancePeriodPicker period={period} onChange={setPeriod} />
+      <div className="grid grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
+        {cards.map((metric) => (
+          <MetricCard key={metric.id} metric={metric} />
+        ))}
+      </div>
+    </section>
   );
 }

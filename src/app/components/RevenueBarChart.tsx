@@ -3,6 +3,7 @@
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,  } from 'recharts';
 import { orderDate, useDashboardOrders } from '@/lib/useDashboardOrders';
+import { orderPartsCost, orderPartsRebate } from '@/lib/financeData';
 
 const CustomTooltip = ({
   active,
@@ -34,14 +35,6 @@ const CustomTooltip = ({
             </span>
           </div>
         ))}
-        {payload.length === 2 && payload[0].value > 0 && (
-          <div className="mt-2 pt-2 border-t border-border flex justify-between">
-            <span className="text-muted-foreground">Gross Margin</span>
-            <span className="font-semibold text-emerald-600 tabular-nums">
-              {(payload[0].value - payload[1].value).toLocaleString()} KM
-            </span>
-          </div>
-        )}
       </div>
     );
   }
@@ -61,11 +54,11 @@ export default function RevenueBarChart() {
     const byDay = new Map(days.map((item) => [item.date.toDateString(), item]));
 
     orders.forEach((order) => {
-      if (order.status === 'Otkazan') return;
+      if (order.status !== 'Zatvoren') return;
       const day = byDay.get(orderDate(order).toDateString());
       if (!day) return;
-      day.revenue += Number(order.orderTotal) || 0;
-      day.partsCost += Number(order.partsPurchaseCost ?? order.partsTotal) || 0;
+      day.revenue += (Number(order.laborTotal) || 0) + orderPartsRebate(order);
+      day.partsCost += orderPartsCost(order);
     });
 
     return days.map(({ date, revenue, partsCost }) => ({
@@ -80,10 +73,10 @@ export default function RevenueBarChart() {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-base font-semibold text-foreground">
-            Prihod vs Trošak dijelova
+            Prihod i trošak dijelova
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Posljednjih 14 dana · Dnevni pregled
+            Posljednjih 14 dana · zatvoreni nalozi
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">

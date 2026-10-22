@@ -2,10 +2,11 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, DollarSign, Package, TrendingUp, Users, Wrench } from 'lucide-react';
+import { ArrowRight, CircleDollarSign, Package, TrendingUp, Users } from 'lucide-react';
 import AppLayout from '@/components/AppLayout';
 import FinancePeriodPicker from '@/app/components/FinancePeriodPicker';
 import FinanceTrendChart from '@/app/components/FinanceTrendChart';
+import FinancePayouts from '@/app/components/FinancePayouts';
 import { useFinanceSummary, PeriodFilter } from '@/lib/financeData';
 
 const formatKm = (value: number) =>
@@ -20,42 +21,34 @@ export default function FinancePage() {
 
   const sections = [
     {
-      href: '/finansije/prihodi',
-      label: 'Prihodi',
+      label: 'Prihod',
+      financeFilter: '',
       value: formatKm(finance.revenue),
-      description: `${finance.closedOrders} zatvorenih naloga`,
-      icon: DollarSign,
+      description: 'Naplata rada + ostvareni rabat na dijelove i ulje',
+      icon: CircleDollarSign,
       className: 'bg-emerald-50 border-emerald-200 text-emerald-700',
     },
     {
-      href: '/finansije/troskovi',
-      label: 'Troškovi dijelova',
+      label: 'Trošak dijelova i ulja',
+      financeFilter: 'parts',
       value: formatKm(finance.partsCost),
-      description: 'Nabavna cijena kod dobavljača',
+      description: 'Iznos nakon odbitka unesenog rabata',
       icon: Package,
       className: 'bg-amber-50 border-amber-200 text-amber-700',
     },
     {
-      href: '/finansije/prihodi',
-      label: 'Naplata rada',
-      value: formatKm(finance.laborRevenue - finance.mechanicEarnings),
-      description: 'Naplaćene ruke nakon 10% za majstore',
-      icon: Wrench,
-      className: 'bg-cyan-50 border-cyan-200 text-cyan-700',
-    },
-    {
-      href: '/majstori/isplate',
-      label: 'Isplate majstorima',
+      label: 'Ručno unesene isplate',
+      financeFilter: 'payouts',
       value: formatKm(finance.mechanicEarnings),
-      description: 'Zarada majstora u periodu',
+      description: `${formatKm(finance.unpaidPayouts)} još nije označeno kao isplaćeno`,
       icon: Users,
       className: 'bg-blue-50 border-blue-200 text-blue-700',
     },
     {
-      href: '/finansije/troskovi',
-      label: 'Dobit',
+      label: 'Rezultat nakon isplata',
+      financeFilter: '',
       value: formatKm(finance.operatingProfit),
-      description: 'Nakon dijelova i isplata majstorima',
+      description: 'Prihod umanjen za ručno unesene isplate',
       icon: TrendingUp,
       className: 'bg-violet-50 border-violet-200 text-violet-700',
     },
@@ -66,6 +59,23 @@ export default function FinancePage() {
       ? `${period.from || '...'} — ${period.to || '...'}`
       : `${period.month || ''} (MTD)`.trim();
 
+  const getSectionHref = (financeFilter: string) => {
+    if (financeFilter === 'payouts') return '/finansije#isplate';
+    let from = period.from;
+    let to = period.to;
+    if (period.mode === 'month' && period.month) {
+      const [year, month] = period.month.split('-').map(Number);
+      from = `${period.month}-01`;
+      const lastDay = new Date(year, month, 0).getDate();
+      to = `${period.month}-${String(lastDay).padStart(2, '0')}`;
+    }
+    const params = new URLSearchParams({ status: 'Zatvoren' });
+    if (from) params.set('from', from);
+    if (to) params.set('to', to);
+    if (financeFilter) params.set('finance', financeFilter);
+    return `/work-order-managment?${params.toString()}`;
+  };
+
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
       <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
@@ -74,32 +84,31 @@ export default function FinancePage() {
             Dashboard
           </Link>
           <h1 className="text-2xl font-semibold text-foreground mt-2">Finansije</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Podaci se računaju iz zatvorenih naloga i evidentiranih isplata.
-          </p>
+          <p className="text-sm text-muted-foreground mt-1">Pregled prihoda, troška dijelova i ručno evidentiranih isplata.</p>
         </div>
 
         <FinancePeriodPicker period={period} onChange={setPeriod} />
 
         <div className="flex items-center justify-between gap-3 px-1">
-          <h2 className="font-semibold text-foreground">Pregled po danima</h2>
+          <h2 className="font-semibold text-foreground">Finansijski pregled · {finance.closedOrders} zatvorenih naloga</h2>
           <span className="text-xs text-muted-foreground">{periodLabel}</span>
         </div>
 
         <FinanceTrendChart period={period} />
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
           {sections.map((section) => {
             const Icon = section.icon;
             return (
               <Link
                 key={section.label}
-                href={section.href}
-                className={`rounded-xl border p-5 shadow-card hover:shadow-card-hover transition-shadow ${section.className}`}
+                href={getSectionHref(section.financeFilter)}
+                className={`rounded-xl border p-5 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-ring ${section.className}`}
+                title={`Prikaži naloge za period ${periodLabel}`}
               >
                 <div className="flex items-start justify-between">
                   <Icon size={22} />
-                  <ArrowRight size={17} />
+                  <ArrowRight size={17} className="opacity-40" />
                 </div>
                 <p className="text-xs font-medium uppercase tracking-wide mt-6">{section.label}</p>
                 <p className="text-2xl font-bold text-foreground tabular-nums mt-1">
@@ -110,6 +119,8 @@ export default function FinancePage() {
             );
           })}
         </div>
+
+        <FinancePayouts period={period} />
       </div>
     </AppLayout>
   );
