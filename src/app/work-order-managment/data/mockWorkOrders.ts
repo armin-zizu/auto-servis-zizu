@@ -49,6 +49,7 @@ export interface WorkOrder {
   supplierOilDiscountPct?: number;
   partsPurchaseCost?: number;
   serviceProfit?: number;
+  estimateImage?: string;
 }
 
 function calcOrder(

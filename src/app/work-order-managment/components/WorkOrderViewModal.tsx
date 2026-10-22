@@ -205,6 +205,24 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
+          {order.estimateImage && (
+            <div>
+              <h4 className="mb-2 text-sm font-semibold text-foreground">Predračun</h4>
+              <button
+                type="button"
+                onClick={() => setSelectedPartImage(order.estimateImage || null)}
+                className="rounded-lg border border-border bg-muted/20 p-2 hover:bg-muted/40"
+              >
+                <img
+                  src={order.estimateImage}
+                  alt="Predračun uz radni nalog"
+                  className="h-36 max-w-full rounded object-contain"
+                />
+                <span className="mt-1 block text-xs text-primary">Otvori sliku</span>
+              </button>
+            </div>
+          )}
+
           {/* Tabela dijelova */}
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
@@ -428,7 +446,7 @@ export default function WorkOrderViewModal({
       <Modal
         open={selectedPartImage !== null}
         onClose={() => setSelectedPartImage(null)}
-        title="Slika zamijenjenog dijela"
+        title="Slika"
         size="lg"
       >
         {selectedPartImage && (

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { Plus, Trash2, Calculator, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Calculator, AlertCircle, FileText, Loader2, Upload, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import Tesseract from 'tesseract.js';
 import {
   WorkOrder,
   PartLineItem,
@@ -12,6 +13,29 @@ import {
 import { OrderStatus } from '@/components/ui/StatusBadge';
 import { mechanicOptions, useMechanics } from '@/lib/mechanics';
 import { defaultSession, readSession } from '@/lib/session';
+import { parseEstimateText } from '@/lib/estimateParser';
+
+async function compressEstimateImage(file: File): Promise<string> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas nije dostupan');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } catch {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Slika se ne može učitati'));
+      reader.readAsDataURL(file);
+    });
+  }
+}
 
 const STATUSES: OrderStatus[] = [
   'Otvoren',
@@ -49,6 +73,11 @@ let orderCounter = 90;
 
 export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrderModalProps) {
   const [saving, setSaving] = useState(false);
+  const [estimateImage, setEstimateImage] = useState('');
+  const [estimateParts, setEstimateParts] = useState<PartLineItem[]>([]);
+  const [readingEstimate, setReadingEstimate] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [estimateMessage, setEstimateMessage] = useState('');
   const { mechanics } = useMechanics();
   const [session, setSession] = useState(defaultSession);
   const availableMechanics = mechanicOptions(mechanics, order?.mechanic);
@@ -98,6 +127,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   useEffect(() => {
     if (open) {
       setSession(readSession());
+      setEstimateImage(order?.estimateImage ?? '');
+      setEstimateParts([]);
+      setEstimateMessage('');
       if (order) {
         reset({
           workDate: order.workDate || order.createdAt,
@@ -150,6 +182,83 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   );
   const orderTotal = partsTotal + laborTotal;
 
+  const handleEstimateUpload = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setEstimateMessage('Odaberite fotografiju ili sliku predračuna.');
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setEstimateMessage('Slika je prevelika. Maksimalna veličina je 12 MB.');
+      return;
+    }
+
+    setEstimateMessage('Pripremam sliku i prepoznajem tekst…');
+    setReadingEstimate(true);
+    setOcrProgress(0);
+    setEstimateParts([]);
+    let worker: Tesseract.Worker | null = null;
+    try {
+      const savedImage = await compressEstimateImage(file);
+      setEstimateImage(savedImage);
+      worker = await Tesseract.createWorker('bos+eng', undefined, {
+        logger: (message) => {
+          if (message.status === 'recognizing text') {
+            setOcrProgress(Math.round(message.progress * 100));
+          }
+        },
+      });
+      const result = await worker.recognize(file);
+      const parsed = parseEstimateText(result.data.text);
+      setEstimateParts(parsed);
+      setEstimateMessage(
+        parsed.length
+          ? `Prepoznato stavki: ${parsed.length}. Provjerite nazive, količine i cijene prije ubacivanja.`
+          : 'Slika je sačuvana, ali stavke nisu jasno prepoznate. Možete ih unijeti ručno.'
+      );
+    } catch (error) {
+      console.error('OCR predračuna nije uspio:', error);
+      setEstimateMessage('Slika je dodana, ali prepoznavanje nije uspjelo. Provjerite vezu i unesite stavke ručno.');
+    } finally {
+      if (worker) {
+        try {
+          await worker.terminate();
+        } catch (error) {
+          console.warn('OCR worker nije zatvoren:', error);
+        }
+      }
+      setReadingEstimate(false);
+    }
+  };
+
+  const updateEstimatePart = (id: string, field: 'name' | 'qty' | 'unitCost' | 'category', value: string) => {
+    setEstimateParts((current) =>
+      current.map((part) => {
+        if (part.id !== id) return part;
+        if (field === 'name') return { ...part, name: value };
+        if (field === 'category') return { ...part, category: value as 'part' | 'oil' };
+        return { ...part, [field]: Number(value) || 0 };
+      })
+    );
+  };
+
+  const addEstimateParts = () => {
+    const validParts = estimateParts.filter(
+      (part) => part.name.trim() && Number(part.qty) > 0 && Number(part.unitCost) > 0
+    );
+    if (!validParts.length) return;
+    validParts.forEach((part) => appendPart({ ...part, id: `estimate-${Date.now()}-${Math.random()}` }));
+    if (
+      watchedParts.length === 1 &&
+      !watchedParts[0]?.name?.trim() &&
+      !(Number(watchedParts[0]?.unitCost) || 0)
+    ) {
+      removePart(0);
+    }
+    setEstimateParts([]);
+    setEstimateMessage(`Dodano ${validParts.length} stavki u nalog. Pregledajte ih prije spremanja.`);
+  };
+
   const onSubmit = async (data: FormValues) => {
     setSaving(true);
     await new Promise((r) => setTimeout(r, 800));
@@ -177,6 +286,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       orderTotal,
       mechanicPayout: 0,
       notes: data.notes,
+      estimateImage,
       createdBy: order?.createdBy ?? session.userName,
       createdByRole: order?.createdByRole ?? session.userRole,
       createdAt: order?.createdAt ?? new Date().toISOString().split('T')[0],
@@ -439,6 +549,120 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               <Plus size={13} />
               Dodaj dio
             </button>
+          </div>
+
+          <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <FileText size={19} className="mt-0.5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Predračun dijelova</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Slikajte ili odaberite predračun. Prepoznate stavke možete provjeriti i urediti prije dodavanja.
+                  </p>
+                </div>
+              </div>
+              <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+                <Upload size={14} />
+                {estimateImage ? 'Zamijeni sliku' : 'Slikaj / dodaj sliku'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="sr-only"
+                  disabled={readingEstimate}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    void handleEstimateUpload(file);
+                    event.currentTarget.value = '';
+                  }}
+                />
+              </label>
+            </div>
+
+            {estimateImage && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-background p-2">
+                <img
+                  src={estimateImage}
+                  alt="Fotografija predračuna"
+                  className="h-24 w-20 rounded object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground">Slika predračuna je dodana uz nalog</p>
+                  <p className="mt-1 text-xs text-muted-foreground">OCR se izvršava u browseru; prvi put može potrajati dok se učita jezički model.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEstimateImage('')}
+                  aria-label="Ukloni sliku predračuna"
+                  className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {readingEstimate && (
+              <p className="mt-3 flex items-center gap-2 text-xs text-primary">
+                <Loader2 size={14} className="animate-spin" />
+                Prepoznavanje predračuna… {ocrProgress}%
+              </p>
+            )}
+            {estimateMessage && !readingEstimate && (
+              <p className="mt-3 text-xs text-muted-foreground">{estimateMessage}</p>
+            )}
+
+            {estimateParts.length > 0 && (
+              <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-background">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+                  <p className="text-xs font-semibold text-foreground">Provjera prepoznatih stavki</p>
+                  <button
+                    type="button"
+                    onClick={addEstimateParts}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    Ubaci {estimateParts.length} stavki u nalog
+                  </button>
+                </div>
+                <table className="w-full min-w-[560px] text-xs">
+                  <thead className="bg-muted/40 text-muted-foreground">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Naziv</th>
+                      <th className="px-2 py-2 text-left">Tip</th>
+                      <th className="w-20 px-2 py-2 text-right">Količina</th>
+                      <th className="w-28 px-2 py-2 text-right">Cijena (KM)</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {estimateParts.map((part) => (
+                      <tr key={part.id}>
+                        <td className="p-2">
+                          <input value={part.name} onChange={(event) => updateEstimatePart(part.id, 'name', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5" aria-label="Naziv prepoznatog dijela" />
+                        </td>
+                        <td className="p-2">
+                          <select value={part.category || 'part'} onChange={(event) => updateEstimatePart(part.id, 'category', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5" aria-label="Tip prepoznate stavke">
+                            <option value="part">Dio</option>
+                            <option value="oil">Ulje</option>
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Količina prepoznatog dijela" />
+                        </td>
+                        <td className="p-2">
+                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Cijena prepoznatog dijela" />
+                        </td>
+                        <td className="p-2">
+                          <button type="button" onClick={() => setEstimateParts((current) => current.filter((item) => item.id !== part.id))} aria-label={`Ukloni ${part.name}`} className="rounded p-1 text-muted-foreground hover:text-red-600">
+                            <X size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Polje za popust */}
