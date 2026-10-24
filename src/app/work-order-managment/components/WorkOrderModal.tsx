@@ -37,6 +37,24 @@ async function compressEstimateImage(file: File): Promise<string> {
   }
 }
 
+async function prepareEstimateOcrImage(file: File): Promise<HTMLCanvasElement> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(3, 2400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) {
+    bitmap.close();
+    throw new Error('Canvas nije dostupan za obradu OCR slike');
+  }
+
+  context.filter = 'grayscale(1) contrast(1.5)';
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas;
+}
+
 const STATUSES: OrderStatus[] = [
   'Otvoren',
   'U toku',
@@ -202,6 +220,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     try {
       const savedImage = await compressEstimateImage(file);
       setEstimateImage(savedImage);
+      const ocrImage = await prepareEstimateOcrImage(file);
       worker = await Tesseract.createWorker('bos+eng', undefined, {
         logger: (message) => {
           if (message.status === 'recognizing text') {
@@ -209,7 +228,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           }
         },
       });
-      const result = await worker.recognize(file);
+      const result = await worker.recognize(ocrImage);
       const parsed = parseEstimateText(result.data.text);
       setEstimateParts(parsed);
       setEstimateMessage(

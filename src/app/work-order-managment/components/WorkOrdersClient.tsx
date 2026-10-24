@@ -27,7 +27,7 @@ import {
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
-import { orderFinanceDate } from '@/lib/financeData';
+import { orderFinanceDate, orderServiceProfit } from '@/lib/financeData';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -327,20 +327,17 @@ export default function WorkOrdersClient() {
       const discountPct = part.category === 'oil' ? oilDiscountPct : partsDiscountPct;
       return total + lineTotal * (1 - discountPct / 100);
     }, 0);
-    const rawPartsTotal = completingOrder.parts.reduce(
-      (total, part) => total + part.qty * part.unitCost,
-      0
-    );
-    const earnedRebate = rawPartsTotal - partsPurchaseCost;
-    const serviceProfit = completingOrder.laborTotal + earnedRebate;
-    const updatedOrder: WorkOrder = {
+    const updatedOrderBase: WorkOrder = {
       ...completingOrder,
       status: 'Zatvoren',
       supplierPartsDiscountPct: partsDiscountPct,
       supplierOilDiscountPct: oilDiscountPct,
       partsPurchaseCost,
-      serviceProfit,
       updatedAt: new Date().toISOString().split('T')[0],
+    };
+    const updatedOrder: WorkOrder = {
+      ...updatedOrderBase,
+      serviceProfit: orderServiceProfit(updatedOrderBase),
     };
     setOrders((prev) => {
       const next = prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));

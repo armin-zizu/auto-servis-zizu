@@ -14,6 +14,7 @@ import {
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { WorkOrder } from '../data/mockWorkOrders';
+import { orderServiceProfit } from '@/lib/financeData';
 
 interface WorkOrderViewModalProps {
   open: boolean;
@@ -31,6 +32,7 @@ export default function WorkOrderViewModal({
   onCloseOrder,
 }: WorkOrderViewModalProps) {
   const [selectedPartImage, setSelectedPartImage] = React.useState<string | null>(null);
+  const serviceProfit = orderServiceProfit(order);
 
   const handlePrintInvoice = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -388,7 +390,7 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
-          {order.partsPurchaseCost !== undefined && order.serviceProfit !== undefined && (
+          {order.partsPurchaseCost !== undefined && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="text-xs text-orange-700 mb-1 font-medium">Nabavni trošak dijelova</p>
@@ -401,22 +403,22 @@ export default function WorkOrderViewModal({
                 </p>
               </div>
               <div
-                className={`p-3 rounded-lg border ${order.serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
+                className={`p-3 rounded-lg border ${serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
               >
                 <p
-                  className={`text-xs mb-1 font-medium ${order.serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
+                  className={`text-xs mb-1 font-medium ${serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
                 >
                   Zarada servisa
                 </p>
                 <p
-                  className={`text-base font-bold tabular-nums ${order.serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
+                  className={`text-base font-bold tabular-nums ${serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
                 >
-                  {order.serviceProfit.toFixed(2)} KM
+                  {serviceProfit.toFixed(2)} KM
                 </p>
                 <p
-                  className={`text-xs mt-1 ${order.serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                  className={`text-xs mt-1 ${serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
                 >
-                  Rad + ostvareni rabat; bez ručno unesenih isplata
+                  Rad + marža dijelova nakon popusta klijentu
                 </p>
               </div>
             </div>

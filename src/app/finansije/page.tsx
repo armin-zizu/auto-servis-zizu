@@ -24,7 +24,7 @@ export default function FinancePage() {
       label: 'Prihod',
       financeFilter: '',
       value: formatKm(finance.revenue),
-      description: 'Naplata rada + ostvareni rabat na dijelove i ulje',
+      description: 'Rad + marža dijelova nakon popusta klijentu',
       icon: CircleDollarSign,
       className: 'bg-emerald-50 border-emerald-200 text-emerald-700',
     },
@@ -84,7 +84,7 @@ export default function FinancePage() {
             Dashboard
           </Link>
           <h1 className="text-2xl font-semibold text-foreground mt-2">Finansije</h1>
-          <p className="text-sm text-muted-foreground mt-1">Pregled prihoda, troška dijelova i ručno evidentiranih isplata.</p>
+          <p className="text-sm text-muted-foreground mt-1">Pregled prihoda nakon popusta klijentu, troška dijelova i ručno evidentiranih isplata.</p>
         </div>
 
         <FinancePeriodPicker period={period} onChange={setPeriod} />

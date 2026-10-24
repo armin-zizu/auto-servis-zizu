@@ -95,36 +95,33 @@ function categoryForName(name: string): 'part' | 'oil' {
     : 'part';
 }
 
-/** Parses the fixed MOTOREX-style table with a separate VAT-inclusive column. */
+/** Parses each product row in the MOTOREX-style table, even if OCR misses headers. */
 function parseBosnianColumnEstimate(text: string): PartLineItem[] {
-  const hasColumnHeader = /iznos\s+sa\s+pdv/i.test(text)
-    && /(?:naziv\s+artikla|proizvo[dđ]a[cč]|kol\.?)/i.test(text);
-  if (!hasColumnHeader) return [];
-
   const rows: PartLineItem[] = [];
   text.split(/\r?\n/).forEach((sourceLine, index) => {
-    const line = sourceLine.replace(/[|]/g, ' ').replace(/\s+/g, ' ').trim();
-    const unitMatch = /\b(?:KOM\.?|SET|PCS?\.?|KOMAD(?:A)?|JED\.?)[\s,]+(\d+(?:[,.]\d+)?)/i.exec(line);
+    const line = sourceLine
+      .replace(/[|]/g, ' ')
+      .replace(/(?<=\d)[Il](?=\s|$)/g, '1')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const unitMatch = /\b(?:K[O0О]M|S[E3]T|PCS?|KOMAD(?:A)?|JED\.?)\.?\s+([0-9Il|]{1,3}(?:[,.][0-9Il|]+)?)/i.exec(line);
     if (!unitMatch || unitMatch.index === undefined) return;
 
-    const prefix = line.slice(0, unitMatch.index).replace(/^\s*\d+[.)]?\s*/, '').trim();
-    const descriptionWords = prefix.split(/\s+/).filter(Boolean);
-    // The column between item name and unit is the manufacturer (e.g. FERODO).
-    if (descriptionWords.length > 1) descriptionWords.pop();
-    const name = descriptionWords.join(' ').trim();
-    const qty = parseMoney(unitMatch[1]);
+    const prefix = line
+      .slice(0, unitMatch.index)
+      .replace(/^\s*\d{1,3}[.)]?\s*/, '')
+      .replace(/\bFERODO\b/gi, ' ')
+      .trim();
+    const name = cleanDescription(prefix);
+    const qty = parseMoney(unitMatch[1].replace(/[Il|]/g, '1'));
 
-    const prices = [...line.matchAll(MONEY_TOKEN)].filter((match) => {
-      const tokenIndex = match.index ?? 0;
-      const suffix = line.slice(tokenIndex + match[0].length);
-      return /[,.]\d{1,2}(?:\s?(?:KM|BAM|EUR|USD|\u20ac|\$))?$/i.test(match[0])
-        && !/^\s*%/.test(suffix);
-    });
+    const prices = [...line.matchAll(/(?<![\w])\d{1,4}[,.][0-9Il|]{2}(?!\d)/g)]
+      .filter((match) => !/^\s*%/.test(line.slice((match.index ?? 0) + match[0].length)))
+      .map((match) => match[0].replace(/[Il|]/g, '1'));
     if (!name || name.length < 2 || !Number.isFinite(qty) || qty <= 0 || !prices.length) return;
 
-    // The final amount in this invoice's row is “Iznos sa PDV”; divide by
-    // quantity to store a unit price, while ignoring the ex-VAT columns.
-    const inclusiveRowTotal = parseMoney(prices[prices.length - 1][0]);
+    // In this layout the final decimal amount on each row is the VAT-inclusive total.
+    const inclusiveRowTotal = parseMoney(prices[prices.length - 1]);
     const unitCost = inclusiveRowTotal / qty;
     if (!Number.isFinite(unitCost) || unitCost <= 0) return;
 

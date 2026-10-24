@@ -68,9 +68,19 @@ export function orderPartsCost(order: WorkOrder): number {
   }, 0);
 }
 
-export function orderPartsRebate(order: WorkOrder): number {
+/** Selling total for parts after the discount given to the customer. */
+export function orderPartsSales(order: WorkOrder): number {
   const rawPartsTotal = order.parts.reduce((total, part) => total + part.qty * part.unitCost, 0);
-  return rawPartsTotal - orderPartsCost(order);
+  const customerDiscountPct = Math.min(100, Math.max(0, Number(order.discountPct) || 0));
+  return rawPartsTotal * (1 - customerDiscountPct / 100);
+}
+
+export function orderPartsRebate(order: WorkOrder): number {
+  return orderPartsSales(order) - orderPartsCost(order);
+}
+
+export function orderServiceProfit(order: WorkOrder): number {
+  return (Number(order.laborTotal) || 0) + orderPartsRebate(order);
 }
 
 function dateInPeriod(date: string, period: PeriodFilter): boolean {
