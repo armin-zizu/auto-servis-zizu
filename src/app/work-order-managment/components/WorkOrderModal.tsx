@@ -6,6 +6,7 @@ import { Plus, Trash2, Calculator, AlertCircle, FileText, Loader2, Upload, Camer
 import Modal from '@/components/ui/Modal';
 import Tesseract from 'tesseract.js';
 import {
+  ORDERS_STORAGE_KEY,
   WorkOrder,
   PartLineItem,
   LaborEntry,
@@ -13,6 +14,7 @@ import {
 import { OrderStatus } from '@/components/ui/StatusBadge';
 import { mechanicOptions, useMechanics } from '@/lib/mechanics';
 import { defaultSession, readSession } from '@/lib/session';
+import { readCache, pull, subscribe } from '@/lib/syncStore';
 import { parseEstimateText } from '../../../lib/estimateParser';
 
 async function compressEstimateImage(file: File): Promise<string> {
@@ -96,6 +98,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   const [readingEstimate, setReadingEstimate] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [estimateMessage, setEstimateMessage] = useState('');
+  const [savedClientOrders, setSavedClientOrders] = useState<WorkOrder[]>([]);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
   const { mechanics } = useMechanics();
   const [session, setSession] = useState(defaultSession);
   const availableMechanics = mechanicOptions(mechanics, order?.mechanic);
@@ -104,6 +108,45 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     ? Array.from(new Set([session.userName, ...(order ? [order.mechanic] : [])]))
     : availableMechanics;
   const defaultMechanicName = isMechanicUser ? session.userName : (availableMechanics[0] ?? '');
+
+  useEffect(() => {
+    const refreshClients = () =>
+      setSavedClientOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+    refreshClients();
+    void pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
+      if (remote) setSavedClientOrders(remote);
+    });
+    return subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, refreshClients);
+  }, []);
+
+  const savedClients = React.useMemo(() => {
+    const clients = new Map<string, WorkOrder>();
+    for (const savedOrder of [...savedClientOrders].sort((a, b) =>
+      `${b.workDate || b.updatedAt || b.createdAt}`.localeCompare(
+        `${a.workDate || a.updatedAt || a.createdAt}`
+      )
+    )) {
+      const name = savedOrder.clientName?.trim();
+      if (name && !clients.has(name.toLocaleLowerCase())) {
+        clients.set(name.toLocaleLowerCase(), savedOrder);
+      }
+    }
+    return [...clients.values()];
+  }, [savedClientOrders]);
+  const matchingClients = clientSearchTerm.trim()
+    ? savedClients.filter((client) =>
+        client.clientName.toLocaleLowerCase().includes(clientSearchTerm.trim().toLocaleLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const applySavedClient = (client: WorkOrder) => {
+    setValue('clientName', client.clientName, { shouldDirty: true, shouldValidate: true });
+    setValue('clientPhone', client.clientPhone || '', { shouldDirty: true });
+    setValue('vehicleYear', client.vehicleYear || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleMake', client.vehicleMake || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleModel', client.vehicleModel || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleVin', client.vehicleVin || '', { shouldDirty: true });
+  };
 
   const {
     register,
@@ -389,16 +432,62 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
-            <div>
+            <div className="relative">
               <label className="block text-xs font-medium text-foreground mb-1.5">
                 Ime klijenta <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 placeholder="npr. Rafael Dominguez"
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-expanded={matchingClients.length > 0}
                 {...register('clientName', { required: 'Ime klijenta je obavezno' })}
+                onChange={(event) => {
+                  const name = event.currentTarget.value;
+                  setClientSearchTerm(name);
+                  setValue('clientName', name, { shouldDirty: true, shouldValidate: true });
+                  const exactMatch = savedClients.find(
+                    (client) => client.clientName.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()
+                  );
+                  if (exactMatch) applySavedClient(exactMatch);
+                }}
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
               />
+              {matchingClients.length > 0 && (
+                <ul
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-card py-1 shadow-lg"
+                >
+                  {matchingClients.map((client) => (
+                    <li key={`${client.id}-${client.clientName}`} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          applySavedClient(client);
+                          setClientSearchTerm('');
+                        }}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted/60 focus:bg-muted/60 focus:outline-none"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-foreground">
+                            {client.clientName}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {client.vehicle || `${client.vehicleYear} ${client.vehicleMake} ${client.vehicleModel}`.trim()}
+                          </span>
+                        </span>
+                        {client.clientPhone && (
+                          <span className="shrink-0 text-xs text-muted-foreground">{client.clientPhone}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {errors.clientName && (
                 <p className="text-xs text-red-500 mt-1">{errors.clientName.message}</p>
               )}
