@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -27,6 +27,7 @@ import {
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
+import { orderFinanceDate, orderServiceProfit } from '@/lib/financeData';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -56,8 +57,7 @@ function readStoredOrders(): WorkOrder[] {
 }
 
 export default function WorkOrdersClient() {
-  const [orders, setOrders] = useState<WorkOrder[]>(mockWorkOrders);
-  const [storageLoaded, setStorageLoaded] = useState(false);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'Svi'>('Svi');
   const [mechanicFilter, setMechanicFilter] = useState<string>('Svi');
@@ -74,40 +74,60 @@ export default function WorkOrdersClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [financeFilter, setFinanceFilter] = useState('');
+  // Becomes true once the initial pull from Supabase has resolved. Until then
+  // persistOrders is a no-op so a stale/empty local list can never overwrite
+  // the shared server copy (this is what made orders "disappear" between
+  // desktop and mobile).
+  const syncReadyRef = useRef(false);
   const searchParams = useSearchParams();
   const { mechanics } = useMechanics();
 
-useEffect(() => {
-    setOrders(readStoredOrders());
-    setStorageLoaded(true);
-    // Pull latest from shared storage on mount.
-    void import('@/lib/syncStore').then(({ pull }) => {
-      pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
-        if (remote) setOrders(normalizeOrders(remote));
-      });
+  useEffect(() => {
+    let active = true;
+    // Never push defaults before the shared copy has been read. Otherwise a
+    // new phone can overwrite saved orders with its empty/demo state.
+    void import('@/lib/syncStore').then(async ({ pull }) => {
+      const cached = normalizeOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+      // Show cached data immediately so the UI isn't empty.
+      setOrders(cached);
+      const remote = await pull<WorkOrder[]>(ORDERS_STORAGE_KEY);
+      if (!active) return;
+      syncReadyRef.current = true;
+      setOrders(normalizeOrders(remote ?? cached));
     });
     // Subscribe to realtime changes from other devices.
     const unsub = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => {
       setOrders(readStoredOrders());
     });
-    return () => unsub();
+    return () => {
+      active = false;
+      unsub();
+    };
   }, []);
 
-useEffect(() => {
-    if (!storageLoaded) return;
-    writeCache(ORDERS_STORAGE_KEY, orders);
-    // Push to shared storage so other devices see it.
-    void push(ORDERS_STORAGE_KEY, orders);
-  }, [orders, storageLoaded]);
+  // A refresh must only read data. Persist exclusively from a deliberate user
+  // action below; otherwise an empty/stale render can overwrite the shared
+  // list while another device is loading it.
+  const persistOrders = useCallback((next: WorkOrder[]) => {
+    writeCache(ORDERS_STORAGE_KEY, next);
+    // Only push to the server after the initial pull has completed.
+    if (syncReadyRef.current) void push(ORDERS_STORAGE_KEY, next);
+  }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
     setActiveOnly(status === 'active');
     if (status && status !== 'active' && ALL_STATUSES.includes(status as OrderStatus)) {
       setStatusFilter(status as OrderStatus);
-    } else if (status === 'active') {
+    } else {
       setStatusFilter('Svi');
     }
+    setDateFrom(searchParams.get('from') || '');
+    setDateTo(searchParams.get('to') || '');
+    setFinanceFilter(searchParams.get('finance') || '');
   }, [searchParams]);
 
   useEffect(() => {
@@ -118,11 +138,8 @@ useEffect(() => {
   }, [orders, searchParams]);
 
   const mechanicFilterOptions = useMemo(
-    () => [
-      'Svi',
-      ...Array.from(new Set([...activeMechanicNames(mechanics), ...orders.map((o) => o.mechanic)])),
-    ],
-    [mechanics, orders]
+    () => ['Svi', ...activeMechanicNames(mechanics)],
+    [mechanics]
   );
 
   const filtered = useMemo(() => {
@@ -144,6 +161,17 @@ useEffect(() => {
     if (activeOnly) {
       result = result.filter((o) => o.status !== 'Zatvoren' && o.status !== 'Otkazan');
     }
+    if (dateFrom || dateTo) {
+      result = result.filter((order) => {
+        const date = orderFinanceDate(order);
+        return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+      });
+    }
+    if (financeFilter === 'parts') {
+      result = result.filter((order) => order.parts.length > 0 && Number(order.partsTotal) > 0);
+    } else if (financeFilter === 'labor') {
+      result = result.filter((order) => Number(order.laborTotal) > 0);
+    }
     if (mechanicFilter !== 'Svi') {
       result = result.filter((o) => o.mechanic === mechanicFilter);
     }
@@ -160,7 +188,30 @@ useEffect(() => {
       });
     }
     return result;
-  }, [orders, search, statusFilter, activeOnly, mechanicFilter, sortKey, sortDir]);
+  }, [orders, search, statusFilter, activeOnly, dateFrom, dateTo, financeFilter, mechanicFilter, sortKey, sortDir]);
+
+  const localIsoDate = (date: Date) => {
+    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+    return local.toISOString().slice(0, 10);
+  };
+  const setRecentRange = (days: number) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - days + 1);
+    setDateFrom(localIsoDate(from));
+    setDateTo(localIsoDate(to));
+    setFinanceFilter('');
+    setPage(1);
+  };
+  const setWeekRange = () => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(to.getDate() - ((to.getDay() + 6) % 7));
+    setDateFrom(localIsoDate(from));
+    setDateTo(localIsoDate(to));
+    setFinanceFilter('');
+    setPage(1);
+  };
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -210,7 +261,11 @@ useEffect(() => {
     if (!deleteId) return;
     setDeleteLoading(true);
     await new Promise((r) => setTimeout(r, 700));
-    setOrders((prev) => prev.filter((o) => o.id !== deleteId));
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== deleteId);
+      persistOrders(next);
+      return next;
+    });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.delete(deleteId);
@@ -222,17 +277,29 @@ useEffect(() => {
   };
 
   const handleBulkDelete = async () => {
-    setOrders((prev) => prev.filter((o) => !selectedIds.has(o.id)));
+    setOrders((prev) => {
+      const next = prev.filter((o) => !selectedIds.has(o.id));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`${selectedIds.size} naloga obrisano`);
     setSelectedIds(new Set());
   };
 
   const handleSaveOrder = (order: WorkOrder) => {
     if (orders.find((o) => o.id === order.id)) {
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)));
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === order.id ? order : o));
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} ažuriran`);
     } else {
-      setOrders((prev) => [order, ...prev]);
+      setOrders((prev) => {
+        const next = [order, ...prev];
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} kreiran`);
     }
     setCreateOpen(false);
@@ -245,7 +312,11 @@ useEffect(() => {
       setCompletingOrder(order);
       return;
     }
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o)));
+    setOrders((prev) => {
+      const next = prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`Status ažuriran na "${newStatus}"`);
   };
 
@@ -256,18 +327,23 @@ useEffect(() => {
       const discountPct = part.category === 'oil' ? oilDiscountPct : partsDiscountPct;
       return total + lineTotal * (1 - discountPct / 100);
     }, 0);
-    const serviceProfit =
-      completingOrder.orderTotal - partsPurchaseCost - completingOrder.mechanicPayout;
-    const updatedOrder: WorkOrder = {
+    const updatedOrderBase: WorkOrder = {
       ...completingOrder,
       status: 'Zatvoren',
       supplierPartsDiscountPct: partsDiscountPct,
       supplierOilDiscountPct: oilDiscountPct,
       partsPurchaseCost,
-      serviceProfit,
       updatedAt: new Date().toISOString().split('T')[0],
     };
-    setOrders((prev) => prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)));
+    const updatedOrder: WorkOrder = {
+      ...updatedOrderBase,
+      serviceProfit: orderServiceProfit(updatedOrderBase),
+    };
+    setOrders((prev) => {
+      const next = prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
+      persistOrders(next);
+      return next;
+    });
     setCompletingOrder(null);
     toast.success(`Nalog ${updatedOrder.orderNum} završen i obračunat`);
   };
@@ -296,6 +372,19 @@ useEffect(() => {
       {/* Traka filtera */}
       <div className="bg-card border border-border rounded-xl shadow-card mb-4">
         <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap w-full">
+            <span className="text-xs font-medium text-muted-foreground mr-1">Period:</span>
+            <button type="button" onClick={setWeekRange} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Ova sedmica</button>
+            <button type="button" onClick={() => setRecentRange(15)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 15 dana</button>
+            <button type="button" onClick={() => setRecentRange(30)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 30 dana</button>
+            <label className="text-xs text-muted-foreground flex items-center gap-1 ml-auto">Od
+              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg" />
+            </label>
+            <label className="text-xs text-muted-foreground flex items-center gap-1">Do
+              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg" />
+            </label>
+            {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setFinanceFilter(''); setPage(1); }} className="px-2 py-1.5 text-xs text-primary hover:underline">Očisti period</button>}
+          </div>
           {/* Pretraga */}
           <div className="relative flex-1 min-w-[200px]">
             <Search
@@ -397,6 +486,7 @@ useEffect(() => {
                 {(
                   [
                     { key: 'orderNum', label: 'Nalog #' },
+                    { key: 'workDate', label: 'Datum' },
                     { key: 'clientName', label: 'Klijent' },
                     { key: 'vehicle', label: 'Vozilo' },
                     { key: 'mechanic', label: 'Majstor' },
@@ -631,6 +721,9 @@ function WorkOrderRow({
         <span className="font-mono-data text-xs font-medium text-primary whitespace-nowrap">
           {order.orderNum}
         </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+        {order.workDate || order.createdAt}
       </td>
       <td className="px-4 py-3">
         <p className="font-medium text-foreground text-sm leading-tight whitespace-nowrap">

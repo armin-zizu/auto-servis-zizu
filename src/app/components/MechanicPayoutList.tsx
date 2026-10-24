@@ -1,178 +1,91 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { DollarSign } from 'lucide-react';
-import { readCache, SYNC_EVENT } from '@/lib/syncStore';
+import { PayoutRecord } from '@/lib/financeData';
+import { pull, readCache, subscribe, SYNC_EVENT } from '@/lib/syncStore';
 
-interface MechanicPayout {
-  id: string;
-  name: string;
-  ordersCompleted: number;
-  laborRevenue: number;
-  payoutPct: number;
-  payoutDue: number;
-  paid: boolean;
+const PAYOUTS_STORAGE_KEY = 'autoservis-payouts';
+
+function readSession() {
+  try {
+    return JSON.parse(
+      window.sessionStorage.getItem('autoservis-session') ||
+        window.localStorage.getItem('autoservis-session') ||
+        'null'
+    ) as { userRole?: string; userName?: string } | null;
+  } catch {
+    return null;
+  }
 }
 
-const initialMechanics: MechanicPayout[] = [
-  {
-    id: 'mech-001',
-    name: 'Derek Hollis',
-    ordersCompleted: 18,
-    laborRevenue: 6240,
-    payoutPct: 35,
-    payoutDue: 2184,
-    paid: false,
-  },
-  {
-    id: 'mech-002',
-    name: 'Tomas Reyes',
-    ordersCompleted: 14,
-    laborRevenue: 4820,
-    payoutPct: 32,
-    payoutDue: 1542,
-    paid: false,
-  },
-  {
-    id: 'mech-003',
-    name: 'Mei-Ling Park',
-    ordersCompleted: 11,
-    laborRevenue: 3180,
-    payoutPct: 30,
-    payoutDue: 954,
-    paid: false,
-  },
-  {
-    id: 'mech-004',
-    name: 'Antoine Briggs',
-    ordersCompleted: 9,
-    laborRevenue: 2640,
-    payoutPct: 30,
-    payoutDue: 792,
-    paid: true,
-  },
-];
-
 export default function MechanicPayoutList() {
-  const [mechanics, setMechanics] = useState(initialMechanics);
-  const [salaryTotal, setSalaryTotal] = useState(0);
+  const [payouts, setPayouts] = useState<PayoutRecord[]>([]);
+  const [session, setSession] = useState<{ userRole?: string; userName?: string } | null>(null);
 
-useEffect(() => {
+  useEffect(() => {
     const refresh = () => {
-      try {
-        const session = JSON.parse(window.sessionStorage.getItem('autoservis-session') || window.localStorage.getItem('autoservis-session') || 'null') as { userRole?: string; userName?: string } | null;
-        const storedPayouts = readCache<Array<{ id: string; amount: number; paid: boolean }>>('autoservis-payouts', []);
-        const storedSalaries = readCache<Array<{ name?: string; amount: number; paid: boolean }>>('autoservis-salaries', []);
-        const isMechanic = session?.userRole === 'mechanic';
-        if (storedPayouts.length > 0) {
-          setMechanics((current) => current.filter((mechanic) => !isMechanic || mechanic.name === session?.userName).map((mechanic) => {
-            const stored = storedPayouts.find((payout) => payout.id === mechanic.id);
-            return stored ? { ...mechanic, payoutDue: Number(stored.amount) || 0, paid: stored.paid } : mechanic;
-          }));
-        }
-        setSalaryTotal(storedSalaries
-          .filter((salary) => !salary.paid && (!isMechanic || salary.name === session?.userName))
-          .reduce((sum, salary) => sum + Number(salary.amount || 0), 0));
-      } catch {
-        setMechanics(initialMechanics);
-        setSalaryTotal(0);
-      }
+      setSession(readSession());
+      setPayouts(readCache<PayoutRecord[]>(PAYOUTS_STORAGE_KEY, []).filter((payout) => Boolean(payout.date)));
     };
     refresh();
-    window.addEventListener('storage', refresh);
+    void pull<PayoutRecord[]>(PAYOUTS_STORAGE_KEY).then(refresh);
+    const unsubscribe = subscribe<PayoutRecord[]>(PAYOUTS_STORAGE_KEY, refresh);
     window.addEventListener(SYNC_EVENT, refresh);
-    // Pull latest payouts/salaries from shared storage on mount.
-    void import('@/lib/syncStore').then(({ pull }) => {
-      void pull<Array<{ id: string; amount: number; paid: boolean }>>('autoservis-payouts').then(() => refresh());
-      void pull<Array<{ name?: string; amount: number; paid: boolean }>>('autoservis-salaries').then(() => refresh());
-    });
+    window.addEventListener('storage', refresh);
     return () => {
-      window.removeEventListener('storage', refresh);
+      unsubscribe();
       window.removeEventListener(SYNC_EVENT, refresh);
+      window.removeEventListener('storage', refresh);
     };
   }, []);
 
-  const totalDue = mechanics
-    .filter((m) => !m.paid)
-    .reduce((sum, m) => sum + m.payoutDue, salaryTotal);
+  const visiblePayouts = useMemo(() => {
+    const rows = session?.userRole === 'mechanic'
+      ? payouts.filter((payout) => payout.name === session.userName)
+      : payouts;
+    return rows.slice(0, 5);
+  }, [payouts, session]);
+  const unpaid = payouts
+    .filter((payout) => !payout.paid && (session?.userRole !== 'mechanic' || payout.name === session.userName))
+    .reduce((total, payout) => total + (Number(payout.amount) || 0), 0);
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-card flex flex-col h-full">
-      <div className="px-5 py-4 border-b border-border">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-base font-semibold text-foreground">
-              Isplate majstorima
-            </h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              MTD · udio od rada
-            </p>
-          </div>
-          <div className="text-right">
-            <p className="text-xs text-muted-foreground">Ukupno za isplatu</p>
-            <p className="text-lg font-bold text-amber-600 tabular-nums">
-              {totalDue.toLocaleString()} KM
-            </p>
-          </div>
+      <div className="px-5 py-4 border-b border-border flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-foreground">Ručno unesene isplate</h3>
+          <p className="text-xs text-muted-foreground mt-0.5">Bez automatskih plata i bonusa</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Neisplaćeno</p>
+          <p className="text-lg font-bold text-amber-600 tabular-nums">{unpaid.toLocaleString('bs-BA')} KM</p>
         </div>
       </div>
-
       <div className="flex-1 divide-y divide-border overflow-y-auto scrollbar-thin">
-        {mechanics.map((m) => (
-          <div key={m.id} className="px-5 py-3.5 hover:bg-muted/30 transition-colors">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <span className="text-xs font-semibold text-primary">
-                    {m.name.split(' ').map((n) => n[0]).join('')}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-foreground leading-tight">
-                    {m.name}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {m.ordersCompleted} naloga · {m.payoutPct}% stopa
-                  </p>
-                </div>
+        {visiblePayouts.map((payout) => (
+          <div key={payout.id} className="px-5 py-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                <span className="text-xs font-semibold text-primary">{payout.name.split(' ').map((part) => part[0]).join('')}</span>
               </div>
-              <div className="text-right">
-                <p
-                  className={`text-sm font-bold tabular-nums ${
-                    m.paid ? 'text-muted-foreground line-through' : 'text-foreground'
-                  }`}
-                >
-                  {m.payoutDue.toLocaleString()} KM
-                </p>
-                {m.paid ? (
-                  <span className="text-xs text-emerald-600 font-medium">Isplaćeno</span>
-                ) : (
-                  <span className="text-xs text-amber-600 font-medium">Neisplaćeno</span>
-                )}
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-foreground truncate">{payout.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{payout.date || 'Datum nije naveden'}{payout.note ? ` · ${payout.note}` : ''}</p>
               </div>
             </div>
-            {/* Progress bar: payout as % of labor revenue */}
-            <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full ${m.paid ? 'bg-emerald-400' : 'bg-amber-400'}`}
-                style={{ width: `${m.payoutPct}%` }}
-              />
+            <div className="text-right shrink-0">
+              <p className={`text-sm font-bold tabular-nums ${payout.paid ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{Number(payout.amount || 0).toLocaleString('bs-BA')} KM</p>
+              <span className={`text-xs font-medium ${payout.paid ? 'text-emerald-600' : 'text-amber-600'}`}>{payout.paid ? 'Isplaćeno' : 'Neisplaćeno'}</span>
             </div>
           </div>
         ))}
+        {!visiblePayouts.length && <p className="px-5 py-8 text-center text-sm text-muted-foreground">Još nema ručno unesenih isplata.</p>}
       </div>
-
-      <div className={`px-5 py-3.5 border-t border-border rounded-b-xl ${totalDue > 0 ? 'bg-amber-50/50' : 'bg-emerald-50/50'}`}>
-        <div className="flex items-center justify-between text-xs">
-          <span className={`${totalDue > 0 ? 'text-amber-700' : 'text-emerald-700'} font-medium flex items-center gap-1.5`}>
-            <DollarSign size={13} />
-            {totalDue > 0 ? 'Postoje neisplaćene obaveze' : 'Sve isplaćeno ovaj mjesec'}
-          </span>
-          <Link href="/finansije?section=isplate" className="text-primary font-semibold hover:underline">
-            Pregledaj isplate
-          </Link>
-        </div>
+      <div className="px-5 py-3.5 border-t border-border rounded-b-xl bg-muted/20 flex items-center justify-between text-xs">
+        <span className="text-muted-foreground flex items-center gap-1.5"><DollarSign size={13} /> Evidentiranje je ručno</span>
+        <Link href="/finansije#isplate" className="text-primary font-semibold hover:underline">Otvori Finansije</Link>
       </div>
     </div>
   );

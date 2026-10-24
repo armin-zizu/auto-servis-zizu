@@ -1,5 +1,6 @@
 'use client';
 
+import { RealtimeChannel } from '@supabase/supabase-js';
 import { getSupabase } from './supabaseClient';
 
 /**
@@ -20,7 +21,23 @@ export const SYNC_EVENT = 'autoservis-sync-changed';
 type Subscriber = () => void;
 
 const listeners = new Map<string, Set<Subscriber>>();
+const channels = new Map<string, RealtimeChannel>();
 const tableName = 'app_data';
+
+// A project can be deployed before its SQL migration has been run. In that
+// case PostgREST responds with 404/PGRST205 for every sync request. Keep the
+// app usable from localStorage and avoid repeatedly issuing failing requests.
+let appDataAvailable = true;
+
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const details = error as { code?: string; status?: number };
+  return details.status === 404 || details.code === 'PGRST205' || details.code === '42P01';
+}
+
+function markTableUnavailable(error: unknown) {
+  if (isMissingTableError(error)) appDataAvailable = false;
+}
 
 function notify(key: string) {
   const set = listeners.get(key);
@@ -44,6 +61,9 @@ export function writeCache(key: string, value: unknown) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(key, JSON.stringify(value));
+    // The browser `storage` event does not fire in the same tab that made the
+    // change. Broadcast our app event so dashboard widgets refresh instantly.
+    window.dispatchEvent(new Event(SYNC_EVENT));
   } catch {
     /* storage full / unavailable */
   }
@@ -56,7 +76,7 @@ export async function pull<T>(key: string): Promise<T | null> {
 
 async function pullInternal<T>(key: string): Promise<T | null> {
   const supabase = getSupabase();
-  if (!supabase) return null;
+  if (!supabase || !appDataAvailable) return null;
   try {
     const { data, error } = await supabase
       .from(tableName)
@@ -66,10 +86,18 @@ async function pullInternal<T>(key: string): Promise<T | null> {
     if (error) throw error;
     if (!data) return null;
     const parsed = data.value as T;
-    writeCache(key, parsed);
-    notify(key);
+    // Only write cache + notify when the value actually changed.
+    // Notifying unconditionally causes an infinite pull -> push -> realtime ->
+    // pull loop ("Maximum update depth exceeded") because pushes are echoed
+    // back to the same client via the realtime subscription.
+    const current = readCache<T>(key, parsed);
+    if (JSON.stringify(current) !== JSON.stringify(parsed)) {
+      writeCache(key, parsed);
+      notify(key);
+    }
     return parsed;
-  } catch {
+  } catch (error) {
+    markTableUnavailable(error);
     return null;
   }
 }
@@ -77,7 +105,7 @@ async function pullInternal<T>(key: string): Promise<T | null> {
 /** Push a value to Supabase (upsert). Returns true on success. */
 export async function push<T>(key: string, value: T): Promise<boolean> {
   const supabase = getSupabase();
-  if (!supabase) return false;
+  if (!supabase || !appDataAvailable) return false;
   try {
     const { error } = await supabase.from(tableName).upsert(
       { key, value, updated_at: new Date().toISOString() },
@@ -85,7 +113,8 @@ export async function push<T>(key: string, value: T): Promise<boolean> {
     );
     if (error) throw error;
     return true;
-  } catch {
+  } catch (error) {
+    markTableUnavailable(error);
     return false;
   }
 }
@@ -124,25 +153,32 @@ export async function sync<T>(key: string, localValue: T): Promise<T> {
 export function subscribe<T>(key: string, listener: Subscriber): () => void {
   const supabase = getSupabase();
   if (!listeners.has(key)) listeners.set(key, new Set());
-  listeners.get(key)!.add(listener);
+  const keyListeners = listeners.get(key)!;
+  keyListeners.add(listener);
 
-  let channel: { unsubscribe: () => void } | null = null;
-  if (supabase) {
-    channel = supabase
-      .channel(`app_data_${key}`)
-      .on(
+  // Multiple components can watch the same key. A single channel per key is
+  // important: Realtime channels cannot have postgres callbacks added once
+  // they have already been subscribed.
+  if (supabase && appDataAvailable && !channels.has(key)) {
+    const channel = supabase.channel(`app_data_${key}`).on(
         'postgres_changes',
         { event: '*', schema: 'public', table: tableName, filter: `key=eq.${key}` },
         () => {
           void pull<T>(key);
         }
-      )
-      .subscribe();
+      );
+    channels.set(key, channel);
+    channel.subscribe();
   }
 
   return () => {
-    listeners.get(key)?.delete(listener);
-    if (supabase && channel) channel.unsubscribe();
+    keyListeners.delete(listener);
+    if (keyListeners.size > 0) return;
+
+    listeners.delete(key);
+    const channel = channels.get(key);
+    channels.delete(key);
+    if (supabase && channel) void supabase.removeChannel(channel);
   };
 }
 

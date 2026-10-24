@@ -2,23 +2,8 @@
 
 import React from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,  } from 'recharts';
-
-const data = [
-  { day: 'Jul 23', revenue: 1820, partsCost: 680 },
-  { day: 'Jul 24', revenue: 2340, partsCost: 910 },
-  { day: 'Jul 25', revenue: 980, partsCost: 340 },
-  { day: 'Jul 26', revenue: 0, partsCost: 0 },
-  { day: 'Jul 27', revenue: 0, partsCost: 0 },
-  { day: 'Jul 28', revenue: 3120, partsCost: 1240 },
-  { day: 'Jul 29', revenue: 2680, partsCost: 890 },
-  { day: 'Jul 30', revenue: 1950, partsCost: 720 },
-  { day: 'Jul 31', revenue: 4210, partsCost: 1580 },
-  { day: 'Aug 1', revenue: 3840, partsCost: 1420 },
-  { day: 'Aug 2', revenue: 0, partsCost: 0 },
-  { day: 'Aug 3', revenue: 0, partsCost: 0 },
-  { day: 'Aug 4', revenue: 5120, partsCost: 1980 },
-  { day: 'Aug 5', revenue: 4680, partsCost: 1760 },
-];
+import { orderDate, useDashboardOrders } from '@/lib/useDashboardOrders';
+import { orderPartsCost, orderPartsRebate } from '@/lib/financeData';
 
 const CustomTooltip = ({
   active,
@@ -50,14 +35,6 @@ const CustomTooltip = ({
             </span>
           </div>
         ))}
-        {payload.length === 2 && payload[0].value > 0 && (
-          <div className="mt-2 pt-2 border-t border-border flex justify-between">
-            <span className="text-muted-foreground">Gross Margin</span>
-            <span className="font-semibold text-emerald-600 tabular-nums">
-              {(payload[0].value - payload[1].value).toLocaleString()} KM
-            </span>
-          </div>
-        )}
       </div>
     );
   }
@@ -65,15 +42,41 @@ const CustomTooltip = ({
 };
 
 export default function RevenueBarChart() {
+  const orders = useDashboardOrders();
+  const data = React.useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const days = Array.from({ length: 14 }, (_, index) => {
+      const date = new Date(today);
+      date.setDate(today.getDate() - 13 + index);
+      return { date, revenue: 0, partsCost: 0 };
+    });
+    const byDay = new Map(days.map((item) => [item.date.toDateString(), item]));
+
+    orders.forEach((order) => {
+      if (order.status !== 'Zatvoren') return;
+      const day = byDay.get(orderDate(order).toDateString());
+      if (!day) return;
+      day.revenue += (Number(order.laborTotal) || 0) + orderPartsRebate(order);
+      day.partsCost += orderPartsCost(order);
+    });
+
+    return days.map(({ date, revenue, partsCost }) => ({
+      day: new Intl.DateTimeFormat('bs-BA', { day: 'numeric', month: 'short' }).format(date),
+      revenue,
+      partsCost,
+    }));
+  }, [orders]);
+
   return (
     <div className="bg-card border border-border rounded-xl shadow-card p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-base font-semibold text-foreground">
-            Prihod vs Trošak dijelova
+            Prihod i trošak dijelova
           </h3>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Posljednjih 14 dana · Dnevni pregled
+            Posljednjih 14 dana · zatvoreni nalozi
           </p>
         </div>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">

@@ -2,9 +2,11 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { Plus, Trash2, Calculator, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Calculator, AlertCircle, FileText, Loader2, Upload, Camera, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import Tesseract from 'tesseract.js';
 import {
+  ORDERS_STORAGE_KEY,
   WorkOrder,
   PartLineItem,
   LaborEntry,
@@ -12,8 +14,49 @@ import {
 import { OrderStatus } from '@/components/ui/StatusBadge';
 import { mechanicOptions, useMechanics } from '@/lib/mechanics';
 import { defaultSession, readSession } from '@/lib/session';
+import { readCache, pull, subscribe } from '@/lib/syncStore';
+import { parseEstimateText } from '../../../lib/estimateParser';
 
-const FIXED_MECHANIC_PAYOUT_PCT = 10;
+async function compressEstimateImage(file: File): Promise<string> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas nije dostupan');
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    return canvas.toDataURL('image/jpeg', 0.78);
+  } catch {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result));
+      reader.onerror = () => reject(new Error('Slika se ne može učitati'));
+      reader.readAsDataURL(file);
+    });
+  }
+}
+
+async function prepareEstimateOcrImage(file: File): Promise<HTMLCanvasElement> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(3, 2400 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext('2d');
+  if (!context) {
+    bitmap.close();
+    throw new Error('Canvas nije dostupan za obradu OCR slike');
+  }
+
+  context.filter = 'grayscale(1) contrast(1.5)';
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close();
+  return canvas;
+}
+
 const STATUSES: OrderStatus[] = [
   'Otvoren',
   'U toku',
@@ -24,6 +67,7 @@ const STATUSES: OrderStatus[] = [
 ];
 
 interface FormValues {
+  workDate: string;
   clientName: string;
   clientPhone: string;
   vehicleYear: string;
@@ -31,7 +75,6 @@ interface FormValues {
   vehicleModel: string;
   vehicleVin: string;
   mechanic: string;
-  mechanicPayoutPct: number;
   status: OrderStatus;
   discountPct: number;
   notes: string;
@@ -50,6 +93,13 @@ let orderCounter = 90;
 
 export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrderModalProps) {
   const [saving, setSaving] = useState(false);
+  const [estimateImage, setEstimateImage] = useState('');
+  const [estimateParts, setEstimateParts] = useState<PartLineItem[]>([]);
+  const [readingEstimate, setReadingEstimate] = useState(false);
+  const [ocrProgress, setOcrProgress] = useState(0);
+  const [estimateMessage, setEstimateMessage] = useState('');
+  const [savedClientOrders, setSavedClientOrders] = useState<WorkOrder[]>([]);
+  const [clientSearchTerm, setClientSearchTerm] = useState('');
   const { mechanics } = useMechanics();
   const [session, setSession] = useState(defaultSession);
   const availableMechanics = mechanicOptions(mechanics, order?.mechanic);
@@ -58,6 +108,45 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     ? Array.from(new Set([session.userName, ...(order ? [order.mechanic] : [])]))
     : availableMechanics;
   const defaultMechanicName = isMechanicUser ? session.userName : (availableMechanics[0] ?? '');
+
+  useEffect(() => {
+    const refreshClients = () =>
+      setSavedClientOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+    refreshClients();
+    void pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
+      if (remote) setSavedClientOrders(remote);
+    });
+    return subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, refreshClients);
+  }, []);
+
+  const savedClients = React.useMemo(() => {
+    const clients = new Map<string, WorkOrder>();
+    for (const savedOrder of [...savedClientOrders].sort((a, b) =>
+      `${b.workDate || b.updatedAt || b.createdAt}`.localeCompare(
+        `${a.workDate || a.updatedAt || a.createdAt}`
+      )
+    )) {
+      const name = savedOrder.clientName?.trim();
+      if (name && !clients.has(name.toLocaleLowerCase())) {
+        clients.set(name.toLocaleLowerCase(), savedOrder);
+      }
+    }
+    return [...clients.values()];
+  }, [savedClientOrders]);
+  const matchingClients = clientSearchTerm.trim()
+    ? savedClients.filter((client) =>
+        client.clientName.toLocaleLowerCase().includes(clientSearchTerm.trim().toLocaleLowerCase())
+      ).slice(0, 8)
+    : [];
+
+  const applySavedClient = (client: WorkOrder) => {
+    setValue('clientName', client.clientName, { shouldDirty: true, shouldValidate: true });
+    setValue('clientPhone', client.clientPhone || '', { shouldDirty: true });
+    setValue('vehicleYear', client.vehicleYear || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleMake', client.vehicleMake || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleModel', client.vehicleModel || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleVin', client.vehicleVin || '', { shouldDirty: true });
+  };
 
   const {
     register,
@@ -76,7 +165,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       vehicleModel: '',
       vehicleVin: '',
       mechanic: '',
-      mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
       status: 'Otvoren',
       discountPct: 0,
       notes: '',
@@ -100,8 +188,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   useEffect(() => {
     if (open) {
       setSession(readSession());
+      setEstimateImage(order?.estimateImage ?? '');
+      setEstimateParts([]);
+      setEstimateMessage('');
       if (order) {
         reset({
+          workDate: order.workDate || order.createdAt,
           clientName: order.clientName,
           clientPhone: order.clientPhone,
           vehicleYear: order.vehicleYear,
@@ -109,15 +201,19 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           vehicleModel: order.vehicleModel,
           vehicleVin: order.vehicleVin,
           mechanic: order.mechanic,
-          mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
           status: order.status,
           discountPct: order.discountPct,
           notes: order.notes,
           parts: order.parts,
-          laborEntries: order.laborEntries,
+          laborEntries: order.laborEntries.map((entry) => ({
+            ...entry,
+            hours: 1,
+            rate: (Number(entry.hours) || 0) * (Number(entry.rate) || 0),
+          })),
         });
       } else {
         reset({
+          workDate: new Date().toISOString().split('T')[0],
           clientName: '',
           clientPhone: '',
           vehicleYear: '',
@@ -125,7 +221,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           vehicleModel: '',
           vehicleVin: '',
           mechanic: defaultMechanicName,
-          mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
           status: 'Otvoren',
           discountPct: 0,
           notes: '',
@@ -139,7 +234,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   const watchedParts = watch('parts');
   const watchedLabor = watch('laborEntries');
   const watchedDiscount = watch('discountPct');
-  const watchedPayoutPct = watch('mechanicPayoutPct');
 
   const rawPartsTotal = watchedParts.reduce(
     (s, p) => s + (Number(p.qty) || 0) * (Number(p.unitCost) || 0),
@@ -147,12 +241,87 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   );
   const discountAmount = rawPartsTotal * ((Number(watchedDiscount) || 0) / 100);
   const partsTotal = rawPartsTotal - discountAmount;
-  const laborTotal = watchedLabor.reduce(
-    (s, l) => s + (Number(l.hours) || 0) * (Number(l.rate) || 0),
-    0
-  );
+  const laborTotal = watchedLabor.reduce((sum, entry) => sum + (Number(entry.rate) || 0), 0);
   const orderTotal = partsTotal + laborTotal;
-  const mechanicPayout = laborTotal * ((Number(watchedPayoutPct) || 0) / 100);
+
+  const handleEstimateUpload = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setEstimateMessage('Odaberite fotografiju ili sliku predračuna.');
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setEstimateMessage('Slika je prevelika. Maksimalna veličina je 12 MB.');
+      return;
+    }
+
+    setEstimateMessage('Pripremam sliku i prepoznajem tekst…');
+    setReadingEstimate(true);
+    setOcrProgress(0);
+    setEstimateParts([]);
+    let worker: Tesseract.Worker | null = null;
+    try {
+      const savedImage = await compressEstimateImage(file);
+      setEstimateImage(savedImage);
+      const ocrImage = await prepareEstimateOcrImage(file);
+      worker = await Tesseract.createWorker('bos+eng', undefined, {
+        logger: (message) => {
+          if (message.status === 'recognizing text') {
+            setOcrProgress(Math.round(message.progress * 100));
+          }
+        },
+      });
+      const result = await worker.recognize(ocrImage);
+      const parsed = parseEstimateText(result.data.text);
+      setEstimateParts(parsed);
+      setEstimateMessage(
+        parsed.length
+          ? `Prepoznato stavki: ${parsed.length}. Provjerite naziv, količinu i cijenu sa PDV-om prije dodavanja.`
+          : 'Slika je sačuvana, ali stavke nisu jasno prepoznate. Možete ih unijeti ručno.'
+      );
+    } catch (error) {
+      console.error('OCR predračuna nije uspio:', error);
+      setEstimateMessage('Slika je dodana, ali prepoznavanje nije uspjelo. Provjerite vezu i unesite stavke ručno.');
+    } finally {
+      if (worker) {
+        try {
+          await worker.terminate();
+        } catch (error) {
+          console.warn('OCR worker nije zatvoren:', error);
+        }
+      }
+      setReadingEstimate(false);
+    }
+  };
+
+  const updateEstimatePart = (id: string, field: 'name' | 'qty' | 'unitCost' | 'category', value: string) => {
+    setEstimateParts((current) =>
+      current.map((part) => {
+        if (part.id !== id) return part;
+        if (field === 'name') return { ...part, name: value };
+        if (field === 'category') return { ...part, category: value as 'part' | 'oil' };
+        if (field === 'qty') return { ...part, qty: Number(value) || 0 };
+        return { ...part, unitCost: Number(value) || 0 };
+      })
+    );
+  };
+
+  const addEstimateParts = () => {
+    const validParts = estimateParts.filter(
+      (part) => part.name.trim() && Number(part.qty) > 0 && Number(part.unitCost) > 0
+    );
+    if (!validParts.length) return;
+    validParts.forEach((part) => appendPart({ ...part, id: `estimate-${Date.now()}-${Math.random()}` }));
+    if (
+      watchedParts.length === 1 &&
+      !watchedParts[0]?.name?.trim() &&
+      !(Number(watchedParts[0]?.unitCost) || 0)
+    ) {
+      removePart(0);
+    }
+    setEstimateParts([]);
+    setEstimateMessage(`Dodano ${validParts.length} stavki u nalog. Pregledajte ih prije spremanja.`);
+  };
 
   const onSubmit = async (data: FormValues) => {
     setSaving(true);
@@ -162,6 +331,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     const saved: WorkOrder = {
       id,
       orderNum,
+      workDate: data.workDate || new Date().toISOString().split('T')[0],
       clientName: data.clientName,
       clientPhone: data.clientPhone,
       vehicleYear: data.vehicleYear,
@@ -170,16 +340,17 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       vehicleVin: data.vehicleVin,
       vehicle: `${data.vehicleYear} ${data.vehicleMake} ${data.vehicleModel}`,
       mechanic: data.mechanic,
-      mechanicPayoutPct: FIXED_MECHANIC_PAYOUT_PCT,
+      mechanicPayoutPct: 0,
       status: data.status,
       parts: data.parts,
-      laborEntries: data.laborEntries,
+      laborEntries: data.laborEntries.map((entry) => ({ ...entry, hours: 1 })),
       discountPct: Number(data.discountPct),
       partsTotal,
       laborTotal,
       orderTotal,
-      mechanicPayout,
+      mechanicPayout: 0,
       notes: data.notes,
+      estimateImage,
       createdBy: order?.createdBy ?? session.userName,
       createdByRole: order?.createdByRole ?? session.userRole,
       createdAt: order?.createdAt ?? new Date().toISOString().split('T')[0],
@@ -253,14 +424,70 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
+                Datum radnog naloga
+              </label>
+              <input
+                type="date"
+                {...register('workDate')}
+                className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+              />
+            </div>
+            <div className="relative">
+              <label className="block text-xs font-medium text-foreground mb-1.5">
                 Ime klijenta <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
                 placeholder="npr. Rafael Dominguez"
+                autoComplete="off"
+                aria-autocomplete="list"
+                aria-expanded={matchingClients.length > 0}
                 {...register('clientName', { required: 'Ime klijenta je obavezno' })}
+                onChange={(event) => {
+                  const name = event.currentTarget.value;
+                  setClientSearchTerm(name);
+                  setValue('clientName', name, { shouldDirty: true, shouldValidate: true });
+                  const exactMatch = savedClients.find(
+                    (client) => client.clientName.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()
+                  );
+                  if (exactMatch) applySavedClient(exactMatch);
+                }}
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
               />
+              {matchingClients.length > 0 && (
+                <ul
+                  role="listbox"
+                  className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-card py-1 shadow-lg"
+                >
+                  {matchingClients.map((client) => (
+                    <li key={`${client.id}-${client.clientName}`} role="presentation">
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected="false"
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => {
+                          applySavedClient(client);
+                          setClientSearchTerm('');
+                        }}
+                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-muted/60 focus:bg-muted/60 focus:outline-none"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate text-sm font-medium text-foreground">
+                            {client.clientName}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {client.vehicle || `${client.vehicleYear} ${client.vehicleMake} ${client.vehicleModel}`.trim()}
+                          </span>
+                        </span>
+                        {client.clientPhone && (
+                          <span className="shrink-0 text-xs text-muted-foreground">{client.clientPhone}</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {errors.clientName && (
                 <p className="text-xs text-red-500 mt-1">{errors.clientName.message}</p>
               )}
@@ -271,6 +498,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </label>
               <input
                 type="tel"
+                inputMode="tel"
                 placeholder="(512) 883-4201"
                 {...register('clientPhone')}
                 className="w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
@@ -296,6 +524,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </label>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 placeholder="2019"
                 maxLength={4}
                 {...register('vehicleYear', { required: 'Godina je obavezna' })}
@@ -431,6 +661,150 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </button>
           </div>
 
+          <div className="mb-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <FileText size={19} className="mt-0.5 shrink-0 text-primary" />
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Predračun dijelova</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Za svaki artikal čitamo naziv/opis, količinu i cijenu sa PDV-om. Iznos reda i zbir dijelova računaju se automatski.
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary/30 bg-background px-3 py-2 text-xs font-medium text-primary hover:bg-primary/5">
+                  <Upload size={14} />
+                  {estimateImage ? 'Izaberi drugu sliku' : 'Izaberi iz galerije'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={readingEstimate}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      void handleEstimateUpload(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+                  <Camera size={14} />
+                  Slikaj predračun
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="sr-only"
+                    disabled={readingEstimate}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      void handleEstimateUpload(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+
+            {estimateImage && (
+              <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-background p-2">
+                <img
+                  src={estimateImage}
+                  alt="Fotografija predračuna"
+                  className="h-24 w-20 rounded object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-foreground">Slika predračuna je dodana uz nalog</p>
+                  <p className="mt-1 text-xs text-muted-foreground">OCR se izvršava u browseru; prvi put može potrajati dok se učita jezički model.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEstimateImage('')}
+                  aria-label="Ukloni sliku predračuna"
+                  className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            )}
+
+            {readingEstimate && (
+              <p className="mt-3 flex items-center gap-2 text-xs text-primary">
+                <Loader2 size={14} className="animate-spin" />
+                Prepoznavanje predračuna… {ocrProgress}%
+              </p>
+            )}
+            {estimateMessage && !readingEstimate && (
+              <p className="mt-3 text-xs text-muted-foreground">{estimateMessage}</p>
+            )}
+
+            {estimateParts.length > 0 && (
+              <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-background">
+                <div className="flex items-center justify-between gap-3 border-b border-border px-3 py-2">
+                  <p className="text-xs font-semibold text-foreground">Provjera prepoznatih stavki</p>
+                  <button
+                    type="button"
+                    onClick={addEstimateParts}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                  >
+                    Ubaci {estimateParts.length} stavki u nalog
+                  </button>
+                </div>
+                <table className="w-full min-w-[650px] text-xs">
+                  <thead className="bg-muted/40 text-muted-foreground">
+                    <tr>
+                      <th className="px-2 py-2 text-left">Naziv / opis</th>
+                      <th className="px-2 py-2 text-left">Tip</th>
+                      <th className="w-20 px-2 py-2 text-right">Kol.</th>
+                      <th className="w-32 px-2 py-2 text-right">Cijena sa PDV (KM)</th>
+                      <th className="w-28 px-2 py-2 text-right">Iznos (KM)</th>
+                      <th className="w-8" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {estimateParts.map((part) => (
+                      <tr key={part.id}>
+                        <td className="p-2">
+                          <input value={part.name} onChange={(event) => updateEstimatePart(part.id, 'name', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5" aria-label="Naziv prepoznatog dijela" />
+                        </td>
+                        <td className="p-2">
+                          <select value={part.category || 'part'} onChange={(event) => updateEstimatePart(part.id, 'category', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5" aria-label="Tip prepoznate stavke">
+                            <option value="part">Dio</option>
+                            <option value="oil">Ulje</option>
+                          </select>
+                        </td>
+                        <td className="p-2">
+                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Količina prepoznatog dijela" />
+                        </td>
+                        <td className="p-2">
+                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Cijena prepoznatog dijela sa PDV-om" />
+                        </td>
+                        <td className="p-2 text-right font-medium tabular-nums">
+                          {(part.qty * part.unitCost).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="p-2">
+                          <button type="button" onClick={() => setEstimateParts((current) => current.filter((item) => item.id !== part.id))} aria-label={`Ukloni ${part.name}`} className="rounded p-1 text-muted-foreground hover:text-red-600">
+                            <X size={14} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="border-t border-border bg-muted/30">
+                      <td colSpan={4} className="px-2 py-2 text-right font-semibold">Ukupno dijelovi</td>
+                      <td className="px-2 py-2 text-right font-bold tabular-nums">
+                        {estimateParts.reduce((total, part) => total + part.qty * part.unitCost, 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+          </div>
+
           {/* Polje za popust */}
           <div className="flex items-center gap-4 mb-4 p-3 bg-muted/50 rounded-lg">
             <label className="text-xs font-medium text-foreground whitespace-nowrap">
@@ -441,6 +815,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </p>
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.5}
@@ -454,11 +829,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             <span className="text-sm text-muted-foreground">%</span>
           </div>
 
+          <p className="sm:hidden mb-2 text-xs text-muted-foreground">
+            Prevucite tabelu lijevo-desno da unesete količinu i cijenu.
+          </p>
           <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[680px] sm:min-w-full text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
+                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground min-w-[280px]">
                     Naziv dijela / Opis
                   </th>
                   <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-20">
@@ -495,7 +873,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           {...register(`parts.${idx}.name`, {
                             required: 'Naziv dijela je obavezan',
                           })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                          className="w-full min-w-[250px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                         />
                         <label className="inline-flex items-center gap-1.5 mt-1 text-xs text-primary cursor-pointer">
                           Dodaj sliku dijela
@@ -566,6 +944,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <td className="px-3 py-2">
                         <input
                           type="number"
+                          inputMode="numeric"
                           min={1}
                           step={1}
                           {...register(`parts.${idx}.qty`, {
@@ -582,6 +961,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </span>
                           <input
                             type="number"
+                            inputMode="decimal"
                             min={0}
                             step={0.01}
                             {...register(`parts.${idx}.unitCost`, {
@@ -678,111 +1058,64 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </button>
           </div>
 
-          <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/40 border-b border-border">
-                  <th className="text-left px-3 py-2 text-xs font-medium text-muted-foreground">
-                    Opis usluge
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-24">
-                    Sati
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-28">
-                    Cijena/sat
-                  </th>
-                  <th className="text-right px-3 py-2 text-xs font-medium text-muted-foreground w-28">
-                    Međuzbir
-                  </th>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {laborFields.map((field, idx) => {
-                  const hours = Number(watchedLabor[idx]?.hours) || 0;
-                  const rate = Number(watchedLabor[idx]?.rate) || 0;
-                  const subtotal = hours * rate;
-                  return (
-                    <tr key={field.id} className="hover:bg-muted/20">
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          placeholder="npr. Zamjena sintetičkog ulja"
-                          {...register(`laborEntries.${idx}.description`, {
-                            required: 'Opis je obavezan',
-                          })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
-                        />
-                        {errors.laborEntries?.[idx]?.description && (
-                          <p className="text-xs text-red-500 mt-0.5">
-                            {errors.laborEntries[idx]?.description?.message}
-                          </p>
-                        )}
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          min={0.25}
-                          step={0.25}
-                          {...register(`laborEntries.${idx}.hours`, {
-                            valueAsNumber: true,
-                            min: 0.25,
-                          })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <div className="relative">
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
-                            KM
-                          </span>
-                          <input
-                            type="number"
-                            min={0}
-                            step={5}
-                            {...register(`laborEntries.${idx}.rate`, {
-                              valueAsNumber: true,
-                              min: 0,
-                            })}
-                            className="w-full pl-2 pr-8 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
-                          />
-                        </div>
-                      </td>
-                      <td className="px-3 py-2 text-right">
-                        <span className="text-sm font-medium text-foreground tabular-nums">
-                          {subtotal.toFixed(2)} KM
-                        </span>
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => removeLabor(idx)}
-                          disabled={laborFields.length === 1}
-                          className="p-1 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          title="Ukloni stavku rada"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="bg-muted/50 border-t-2 border-border">
-                  <td
-                    colSpan={3}
-                    className="px-3 py-2 text-xs font-semibold text-foreground text-right"
+          <div className="overflow-hidden rounded-lg border border-border">
+            <div className="grid grid-cols-[minmax(0,1fr)_104px_36px] items-center gap-2 border-b border-border bg-muted/40 px-3 py-2">
+              <span className="text-xs font-medium text-muted-foreground">Opis usluge</span>
+              <span className="text-right text-xs font-medium text-muted-foreground">Cijena</span>
+              <span />
+            </div>
+            <div className="divide-y divide-border">
+              {laborFields.map((field, idx) => (
+                <div key={field.id} className="grid grid-cols-[minmax(0,1fr)_104px_36px] items-start gap-2 px-3 py-2">
+                  <div className="min-w-0">
+                    <input
+                      type="text"
+                      placeholder="npr. Zamjena sintetičkog ulja"
+                      {...register(`laborEntries.${idx}.description`, {
+                        required: 'Opis je obavezan',
+                      })}
+                      className="w-full min-w-0 px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
+                    />
+                    {errors.laborEntries?.[idx]?.description && (
+                      <p className="text-xs text-red-500 mt-0.5">
+                        {errors.laborEntries[idx]?.description?.message}
+                      </p>
+                    )}
+                  </div>
+                  <div className="relative">
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground text-xs">
+                      KM
+                    </span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      step={1}
+                      {...register(`laborEntries.${idx}.rate`, {
+                        valueAsNumber: true,
+                        min: 0,
+                      })}
+                      className="w-full min-w-0 pl-2 pr-8 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLabor(idx)}
+                    disabled={laborFields.length === 1}
+                    className="justify-self-center p-1.5 rounded hover:bg-red-50 text-muted-foreground hover:text-red-600 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    title="Ukloni stavku rada"
                   >
-                    Ukupno rad
-                  </td>
-                  <td className="px-3 py-2 text-right text-sm font-bold tabular-nums text-foreground">
-                    {laborTotal.toFixed(2)} KM
-                  </td>
-                  <td />
-                </tr>
-              </tfoot>
-            </table>
+                    <Trash2 size={13} />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t-2 border-border bg-muted/50 px-3 py-2">
+              <span className="text-xs font-semibold text-foreground">Ukupno rad</span>
+              <span className="text-sm font-bold tabular-nums text-foreground">
+                {laborTotal.toFixed(2)} KM
+              </span>
+            </div>
           </div>
         </section>
 

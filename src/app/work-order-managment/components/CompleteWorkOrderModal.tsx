@@ -50,14 +50,15 @@ export default function CompleteWorkOrderModal({
         <div className="flex gap-3 p-3 bg-primary/5 border border-primary/15 rounded-lg">
           <Calculator size={17} className="text-primary shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Unesite popust koji ste dobili od dobavljača. Polja nisu obavezna; prazno polje znači 0% popusta.
+            Unesite svoj procenat rabata za dijelove i ulje. Taj procenat ulazi u prihod, a preostali procenat se računa kao trošak. Prazno polje znači 0% rabata.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <label className="text-xs font-medium text-foreground">
-            Popust dobavljača na dijelove (%)
+            Vaš rabat na dijelove (%)
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.01}
@@ -68,9 +69,10 @@ export default function CompleteWorkOrderModal({
             />
           </label>
           <label className="text-xs font-medium text-foreground">
-            Popust na ulje (%)
+            Vaš rabat na ulje (%)
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
               step={0.01}

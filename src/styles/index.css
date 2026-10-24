@@ -1,1 +1,12 @@
 @import './tailwind.css';
+
+/* Prevent iOS Safari from zooming the page when a form field receives focus.
+   The viewport rule blocks pinch/double-tap zoom; 16px controls cover Safari's
+   automatic input-focus zoom. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

@@ -14,6 +14,7 @@ import {
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { WorkOrder } from '../data/mockWorkOrders';
+import { orderServiceProfit } from '@/lib/financeData';
 
 interface WorkOrderViewModalProps {
   open: boolean;
@@ -31,6 +32,7 @@ export default function WorkOrderViewModal({
   onCloseOrder,
 }: WorkOrderViewModalProps) {
   const [selectedPartImage, setSelectedPartImage] = React.useState<string | null>(null);
+  const serviceProfit = orderServiceProfit(order);
 
   const handlePrintInvoice = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -89,8 +91,8 @@ export default function WorkOrderViewModal({
             ${order.parts.map((part) => `<tr><td>${escapeHtml(part.name)}${part.category === 'oil' ? ' <span class="muted">(ulje)</span>' : ''}</td><td>${part.qty}</td><td>${money(part.unitCost)}</td><td>${money(part.qty * part.unitCost)}</td></tr>`).join('')}
           </tbody></table>
           <h2>Rad</h2>
-          <table><thead><tr><th>Usluga</th><th>Sati</th><th>Cijena/sat</th><th>Međuzbir</th></tr></thead><tbody>
-            ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${entry.hours}</td><td>${money(entry.rate)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
+          <table><thead><tr><th>Opis usluge</th><th>Cijena</th></tr></thead><tbody>
+            ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
           </tbody></table>
           <div class="total">
             <div><span>Dijelovi</span><strong>${money(order.partsTotal)}</strong></div>
@@ -205,6 +207,24 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
+          {order.estimateImage && (
+            <div>
+              <h4 className="mb-2 text-sm font-semibold text-foreground">Predračun</h4>
+              <button
+                type="button"
+                onClick={() => setSelectedPartImage(order.estimateImage || null)}
+                className="rounded-lg border border-border bg-muted/20 p-2 hover:bg-muted/40"
+              >
+                <img
+                  src={order.estimateImage}
+                  alt="Predračun uz radni nalog"
+                  className="h-36 max-w-full rounded object-contain"
+                />
+                <span className="mt-1 block text-xs text-primary">Otvori sliku</span>
+              </button>
+            </div>
+          )}
+
           {/* Tabela dijelova */}
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
@@ -317,13 +337,7 @@ export default function WorkOrderViewModal({
                       Usluga
                     </th>
                     <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                      Sati
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
                       Cijena
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                      Međuzbir
                     </th>
                   </tr>
                 </thead>
@@ -332,12 +346,6 @@ export default function WorkOrderViewModal({
                     <tr key={entry.id} className="hover:bg-muted/20">
                       <td className="px-4 py-2.5 text-foreground">{entry.description}</td>
                       <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                        {entry.hours}h
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                        {entry.rate} KM/sat
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
                         {(entry.hours * entry.rate).toFixed(2)} KM
                       </td>
                     </tr>
@@ -346,7 +354,7 @@ export default function WorkOrderViewModal({
                 <tfoot>
                   <tr className="border-t-2 border-border bg-muted/30">
                     <td
-                      colSpan={3}
+                      colSpan={1}
                       className="px-4 py-2.5 text-xs font-semibold text-right text-foreground"
                     >
                       Ukupno rad
@@ -382,7 +390,7 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
-          {order.partsPurchaseCost !== undefined && order.serviceProfit !== undefined && (
+          {order.partsPurchaseCost !== undefined && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="text-xs text-orange-700 mb-1 font-medium">Nabavni trošak dijelova</p>
@@ -390,27 +398,27 @@ export default function WorkOrderViewModal({
                   {order.partsPurchaseCost.toFixed(2)} KM
                 </p>
                 <p className="text-xs text-orange-600 mt-1">
-                  Popust dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
+                  Vaš rabat: dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
                   {order.supplierOilDiscountPct ?? 0}%
                 </p>
               </div>
               <div
-                className={`p-3 rounded-lg border ${order.serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
+                className={`p-3 rounded-lg border ${serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
               >
                 <p
-                  className={`text-xs mb-1 font-medium ${order.serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
+                  className={`text-xs mb-1 font-medium ${serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
                 >
                   Zarada servisa
                 </p>
                 <p
-                  className={`text-base font-bold tabular-nums ${order.serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
+                  className={`text-base font-bold tabular-nums ${serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
                 >
-                  {order.serviceProfit.toFixed(2)} KM
+                  {serviceProfit.toFixed(2)} KM
                 </p>
                 <p
-                  className={`text-xs mt-1 ${order.serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                  className={`text-xs mt-1 ${serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
                 >
-                  Nakon nabavke i isplate majstoru
+                  Rad + marža dijelova nakon popusta klijentu
                 </p>
               </div>
             </div>
@@ -428,7 +436,7 @@ export default function WorkOrderViewModal({
       <Modal
         open={selectedPartImage !== null}
         onClose={() => setSelectedPartImage(null)}
-        title="Slika zamijenjenog dijela"
+        title="Slika"
         size="lg"
       >
         {selectedPartImage && (
