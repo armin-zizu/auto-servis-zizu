@@ -4,6 +4,8 @@ const IGNORED_LINE = /^(?:subtotal|sub\s*-?total|total|ukupno|za uplatu|pdv|vat|
 const MONEY_TOKEN = /(?<![\w])(?:\d{1,3}(?:[ .]\d{3})+|\d+)(?:[,.]\d{1,2})?(?:\s?(?:KM|BAM|EUR|\u20ac|USD|\$))?(?!\w)/gi;
 const NUMBER_TOKEN = /\d+(?:[,.]\d+)?/g;
 
+const KNOWN_MANUFACTURERS = /\b(?:CHAMPION|JP\s+GROUP|MARELLI|AIC|MEAT\s*&\s*DORIA|FERODO|BOSCH|MANN(?:[-\s]?FILTER)?|VALEO|HELLA)\b/gi;
+
 function parseMoney(value: string): number {
   const normalized = value
     .replace(/\s?(?:KM|BAM|EUR|USD|\u20ac|\$)/gi, '')
@@ -98,31 +100,39 @@ function categoryForName(name: string): 'part' | 'oil' {
 /** Parses each product row in the MOTOREX-style table, even if OCR misses headers. */
 function parseBosnianColumnEstimate(text: string): PartLineItem[] {
   const rows: PartLineItem[] = [];
-  text.split(/\r?\n/).forEach((sourceLine, index) => {
-    const line = sourceLine
-      .replace(/[|]/g, ' ')
-      .replace(/(?<=\d)[Il](?=\s|$)/g, '1')
-      .replace(/\s+/g, ' ')
-      .trim();
-    const unitMatch = /\b(?:K[O0О]M|S[E3]T|PCS?|KOMAD(?:A)?|JED\.?)\.?\s+([0-9Il|]{1,3}(?:[,.][0-9Il|]+)?)/i.exec(line);
+  const lines = text
+    .replace(/\u00a0/g, ' ')
+    .replace(/[|]/g, ' ')
+    .replace(/(?<=\d)[Il](?=\s|$)/g, '1')
+    .split(/\r?\n/);
+
+  lines.forEach((sourceLine, index) => {
+    const line = sourceLine.replace(/\s+/g, ' ').trim();
+    const rowMatch = /^\s*(\d{1,3})[.)]?\s+(.+)$/i.exec(line);
+    if (!rowMatch) return;
+
+    const rowContent = rowMatch[2];
+    const unitMatch = /\b(K[O0О]M|S[E3]T|L|PCS?|KOMAD(?:A)?|JED\.?)\.?\s+([0-9Il|]{1,3}(?:[,.][0-9Il|]+)?)/i.exec(rowContent);
     if (!unitMatch || unitMatch.index === undefined) return;
 
-    const prefix = line
+    const prefix = rowContent
       .slice(0, unitMatch.index)
-      .replace(/^\s*\d{1,3}[.)]?\s*/, '')
-      .replace(/\bFERODO\b/gi, ' ')
+      .replace(KNOWN_MANUFACTURERS, ' ')
+      .replace(/\b(?:naziv|artikla)\b/gi, ' ')
+      .replace(/[,:;]+$/g, '')
+      .replace(/\s+/g, ' ')
       .trim();
     const name = cleanDescription(prefix);
-    const qty = parseMoney(unitMatch[1].replace(/[Il|]/g, '1'));
+    const qty = parseMoney(unitMatch[2].replace(/[Il|]/g, '1'));
 
+    // Read only decimal amounts on the row. The VAT percentage ends in "%"
+    // and is therefore naturally excluded; the last decimal is Iznos sa PDV.
     const prices = [...line.matchAll(/(?<![\w])\d{1,4}[,.][0-9Il|]{2}(?!\d)/g)]
-      .filter((match) => !/^\s*%/.test(line.slice((match.index ?? 0) + match[0].length)))
       .map((match) => match[0].replace(/[Il|]/g, '1'));
     if (!name || name.length < 2 || !Number.isFinite(qty) || qty <= 0 || !prices.length) return;
 
-    // In this layout the final decimal amount on each row is the VAT-inclusive total.
     const inclusiveRowTotal = parseMoney(prices[prices.length - 1]);
-    const unitCost = inclusiveRowTotal / qty;
+    const unitCost = qty > 0 ? inclusiveRowTotal / qty : 0;
     if (!Number.isFinite(unitCost) || unitCost <= 0) return;
 
     rows.push({
