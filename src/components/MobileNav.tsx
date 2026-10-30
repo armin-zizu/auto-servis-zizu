@@ -13,6 +13,7 @@ import {
   Users,
   Wrench,
   X,
+  WalletCards,
 } from 'lucide-react';
 
 interface MobileNavProps {
@@ -23,7 +24,7 @@ interface MobileNavProps {
 const mainItems = [
   { label: 'Tabla', href: '/', icon: <LayoutDashboard size={20} /> },
   { label: 'Nalozi', href: '/work-order-managment', icon: <ClipboardList size={20} /> },
-  { label: 'Finansije', href: '/finansije', icon: <DollarSign size={20} /> },
+  { label: 'Dobavljači', href: '/dobavljaci', icon: <WalletCards size={20} /> },
 ];
 
 const moreItems = [
@@ -115,18 +116,6 @@ export default function MobileNav({ userRole = 'owner', userName = '' }: MobileN
             {item.label}
           </Link>
         ))}
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          aria-label="Više"
-          className={`flex-1 flex flex-col items-center justify-center gap-1 text-[11px] font-medium ${
-            open ? 'text-primary' : 'text-muted-foreground'
-          }`}
-        >
-          <Menu size={20} />
-          Više
-        </button>
       </nav>
     </>
   );

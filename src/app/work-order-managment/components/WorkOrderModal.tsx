@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -10,6 +10,8 @@ import {
   WorkOrder,
   PartLineItem,
   LaborEntry,
+  DEFAULT_SUPPLIER,
+  SUPPLIERS_STORAGE_KEY,
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { OrderStatus } from '@/components/ui/StatusBadge';
 import { mechanicOptions, useMechanics } from '@/lib/mechanics';
@@ -94,11 +96,13 @@ let orderCounter = 90;
 export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrderModalProps) {
   const [saving, setSaving] = useState(false);
   const [estimateImage, setEstimateImage] = useState('');
+  const [registrationImage, setRegistrationImage] = useState('');
   const [estimateParts, setEstimateParts] = useState<PartLineItem[]>([]);
   const [readingEstimate, setReadingEstimate] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [estimateMessage, setEstimateMessage] = useState('');
   const [savedClientOrders, setSavedClientOrders] = useState<WorkOrder[]>([]);
+  const [availableSuppliers, setAvailableSuppliers] = useState<string[]>(['Motorex']);
   const [clientSearchTerm, setClientSearchTerm] = useState('');
   const { mechanics } = useMechanics();
   const [session, setSession] = useState(defaultSession);
@@ -168,7 +172,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       status: 'Otvoren',
       discountPct: 0,
       notes: '',
-      parts: [{ id: 'part-new-1', name: '', qty: 1, unitCost: 0, category: 'part' }],
+      parts: [{ id: 'part-new-1', name: '', qty: 1, unitCost: 0, category: 'part', supplier: DEFAULT_SUPPLIER }],
       laborEntries: [{ id: 'labor-new-1', description: '', hours: 1, rate: 85 }],
     },
   });
@@ -189,6 +193,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     if (open) {
       setSession(readSession());
       setEstimateImage(order?.estimateImage ?? '');
+      setRegistrationImage(order?.registrationImage ?? '');
       setEstimateParts([]);
       setEstimateMessage('');
       if (order) {
@@ -204,7 +209,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           status: order.status,
           discountPct: order.discountPct,
           notes: order.notes,
-          parts: order.parts,
+          parts: order.parts.map((part) => ({ ...part, supplier: part.supplier?.trim() || DEFAULT_SUPPLIER })),
           laborEntries: order.laborEntries.map((entry) => ({
             ...entry,
             hours: 1,
@@ -224,7 +229,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           status: 'Otvoren',
           discountPct: 0,
           notes: '',
-          parts: [{ id: 'part-new-1', name: '', qty: 1, unitCost: 0, category: 'part' }],
+          parts: [{ id: 'part-new-1', name: '', qty: 1, unitCost: 0, category: 'part', supplier: DEFAULT_SUPPLIER }],
           laborEntries: [{ id: 'labor-new-1', description: '', hours: 1, rate: 85 }],
         });
       }
@@ -311,7 +316,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       (part) => part.name.trim() && Number(part.qty) > 0 && Number(part.unitCost) > 0
     );
     if (!validParts.length) return;
-    validParts.forEach((part) => appendPart({ ...part, id: `estimate-${Date.now()}-${Math.random()}` }));
+    validParts.forEach((part) => appendPart({ ...part, id: `estimate-${Date.now()}-${Math.random()}`, supplier: part.supplier || DEFAULT_SUPPLIER }));
     if (
       watchedParts.length === 1 &&
       !watchedParts[0]?.name?.trim() &&
@@ -342,8 +347,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       mechanic: data.mechanic,
       mechanicPayoutPct: 0,
       status: data.status,
-      parts: data.parts,
-      laborEntries: data.laborEntries.map((entry) => ({ ...entry, hours: 1 })),
+      parts: data.parts.map((part) => ({ ...part, supplier: part.supplier?.trim() || DEFAULT_SUPPLIER })),
+      laborEntries: data.laborEntries.map((entry) => ({
+        ...entry,
+        hours: 1,
+        rate: (Number(entry.hours) || 0) * (Number(entry.rate) || 0),
+      })),
       discountPct: Number(data.discountPct),
       partsTotal,
       laborTotal,
@@ -351,6 +360,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       mechanicPayout: 0,
       notes: data.notes,
       estimateImage,
+      registrationImage,
       createdBy: order?.createdBy ?? session.userName,
       createdByRole: order?.createdByRole ?? session.userRole,
       createdAt: order?.createdAt ?? new Date().toISOString().split('T')[0],
@@ -652,6 +662,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                   qty: 1,
                   unitCost: 0,
                   category: 'part',
+                  supplier: DEFAULT_SUPPLIER,
                 })
               }
               className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
@@ -688,18 +699,20 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                     }}
                   />
                 </label>
-                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-primary/90">
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/60">
                   <Camera size={14} />
-                  Slikaj predračun
+                  Saobraćajna
                   <input
                     type="file"
                     accept="image/*"
                     capture="environment"
                     className="sr-only"
-                    disabled={readingEstimate}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
-                      void handleEstimateUpload(file);
+                      if (!file) return;
+                      void compressEstimateImage(file)
+                        .then((savedImage) => setRegistrationImage(savedImage))
+                        .catch(() => setEstimateMessage('Saobraćajna se ne može učitati.'));
                       event.currentTarget.value = '';
                     }}
                   />
@@ -830,9 +843,88 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           </div>
 
           <p className="sm:hidden mb-2 text-xs text-muted-foreground">
-            Prevucite tabelu lijevo-desno da unesete količinu i cijenu.
+            Unosite podatke u karticama ispod — nema povlačenja lijevo-desno.
           </p>
-          <div className="overflow-x-auto scrollbar-thin rounded-lg border border-border">
+          <div className="space-y-3 sm:hidden">
+            {partFields.map((field, idx) => {
+              const qty = Number(watchedParts[idx]?.qty) || 0;
+              const unitCost = Number(watchedParts[idx]?.unitCost) || 0;
+              return (
+                <div key={`mobile-${field.id}`} className="rounded-lg border border-border bg-card p-3 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      {...register(`parts.${idx}.category`)}
+                      className="px-2 py-2 text-sm bg-background border border-input rounded-md"
+                      aria-label="Kategorija stavke"
+                    >
+                      <option value="part">Dio</option>
+                      <option value="oil">Ulje</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => removePart(idx)}
+                      disabled={partFields.length === 1}
+                      className="justify-self-end p-2 rounded-md text-muted-foreground hover:bg-red-50 hover:text-red-600 disabled:opacity-30"
+                      aria-label="Ukloni dio"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs text-muted-foreground">Dobavljač</label>
+                    <select
+                      value={watchedParts[idx]?.supplier || DEFAULT_SUPPLIER}
+                      onChange={(event) => setValue(`parts.${idx}.supplier`, event.target.value, { shouldDirty: true })}
+                      className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md"
+                      aria-label="Dobavljač stavke"
+                    >
+                      {availableSuppliers.map((supplier) => (
+                        <option key={`mobile-supplier-${supplier}`} value={supplier}>{supplier}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Naziv dijela ili opis"
+                    {...register(`parts.${idx}.name`, { required: 'Naziv dijela je obavezan' })}
+                    className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md"
+                  />
+                  {errors.parts?.[idx]?.name && (
+                    <p className="text-xs text-red-500">{errors.parts[idx]?.name?.message}</p>
+                  )}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Količina</label>
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        step={1}
+                        {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 1 })}
+                        className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md text-right"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs text-muted-foreground">Jed. cijena</label>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        min={0}
+                        step={0.01}
+                        {...register(`parts.${idx}.unitCost`, { valueAsNumber: true, min: 0 })}
+                        className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md text-right"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-between border-t border-border pt-2 text-sm">
+                    <span className="text-muted-foreground">Ukupno</span>
+                    <span className="font-bold tabular-nums">{(qty * unitCost).toFixed(2)} KM</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden sm:block overflow-x-auto scrollbar-thin rounded-lg border border-border">
             <table className="w-full min-w-[680px] sm:min-w-full text-sm">
               <thead>
                 <tr className="bg-muted/40 border-b border-border">
@@ -866,6 +958,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         >
                           <option value="part">Dio</option>
                           <option value="oil">Ulje</option>
+                        </select>
+                        <select
+                          value={watchedParts[idx]?.supplier || DEFAULT_SUPPLIER}
+                          onChange={(event) => setValue(`parts.${idx}.supplier`, event.target.value, { shouldDirty: true })}
+                          className="mb-1 w-full px-2 py-1 text-xs bg-background border border-input rounded-md"
+                          aria-label="Dobavljač stavke"
+                        >
+                          {availableSuppliers.map((supplier) => (
+                            <option key={`mobile-${supplier}`} value={supplier}>{supplier}</option>
+                          ))}
                         </select>
                         <input
                           type="text"
@@ -1181,3 +1283,5 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     </Modal>
   );
 }
+
+

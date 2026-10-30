@@ -7,6 +7,7 @@ export interface PartLineItem {
   name: string;
   qty: number;
   unitCost: number;
+  supplier?: string;
   category?: 'part' | 'oil';
   image?: string;
   images?: string[];
@@ -50,7 +51,32 @@ export interface WorkOrder {
   partsPurchaseCost?: number;
   serviceProfit?: number;
   estimateImage?: string;
+  registrationImage?: string;
+  supplierPaymentAllocations?: SupplierPaymentAllocation[];
 }
+
+export interface SupplierPaymentAllocation {
+  paymentId: string;
+  supplier: string;
+  amount: number;
+  paidAt: string;
+}
+
+export interface SupplierPaymentRecord {
+  id: string;
+  supplier: string;
+  paidAt: string;
+  from: string;
+  to: string;
+  amount: number;
+  orderIds: string[];
+  orderAmounts: Record<string, number>;
+}
+
+export const SUPPLIER_PAYMENTS_STORAGE_KEY = 'autoservis-supplier-payments';
+export const SUPPLIERS_STORAGE_KEY = 'autoservis-suppliers';
+export const DEFAULT_SUPPLIERS = ['Motorex'];
+export const DEFAULT_SUPPLIER = 'Motorex';
 
 function calcOrder(
   parts: PartLineItem[],

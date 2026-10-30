@@ -14,6 +14,7 @@ import {
   Settings,
   Users,
   DollarSign,
+  WalletCards,
 } from 'lucide-react';
 
 interface NavItem {
@@ -160,6 +161,21 @@ export default function Sidebar({
             {!collapsed && <span className="flex-1 truncate">Finansije</span>}
           </Link>
         </div>
+
+        <Link
+          href="/dobavljaci"
+          title={collapsed ? 'Dobavljači' : undefined}
+          className={`group flex items-center gap-3 px-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 relative ${
+            pathname.startsWith('/dobavljaci')
+              ? 'bg-primary/10 text-primary'
+              : 'text-secondary-foreground hover:bg-muted hover:text-foreground'
+          } ${collapsed ? 'justify-center' : ''}`}
+        >
+          <span className="shrink-0">
+            <WalletCards size={20} />
+          </span>
+          {!collapsed && <span>Dobavljači</span>}
+        </Link>
 
         {userRole === 'owner' && (
           <>

@@ -225,6 +225,24 @@ export default function WorkOrderViewModal({
             </div>
           )}
 
+          {order.registrationImage && (
+            <div>
+              <h4 className="mb-2 text-sm font-semibold text-foreground">Saobraćajna dozvola</h4>
+              <button
+                type="button"
+                onClick={() => setSelectedPartImage(order.registrationImage || null)}
+                className="rounded-lg border border-border bg-muted/20 p-2 hover:bg-muted/40"
+              >
+                <img
+                  src={order.registrationImage}
+                  alt="Saobraćajna dozvola uz radni nalog"
+                  className="h-36 max-w-full rounded object-contain"
+                />
+                <span className="mt-1 block text-xs text-primary">Otvori sliku</span>
+              </button>
+            </div>
+          )}
+
           {/* Tabela dijelova */}
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>

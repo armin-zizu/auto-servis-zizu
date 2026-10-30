@@ -24,10 +24,12 @@ import {
   ORDERS_STORAGE_KEY,
   WorkOrder,
   mockWorkOrders,
+  DEFAULT_SUPPLIER,
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
 import { orderFinanceDate, orderServiceProfit } from '@/lib/financeData';
+import { orderSupplierPaymentState } from '@/lib/supplierPayments';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -48,7 +50,26 @@ function normalizeOrders(orders: WorkOrder[]): WorkOrder[] {
     ...order,
     createdBy: order.createdBy ?? '',
     createdByRole: order.createdByRole ?? 'owner',
+    parts: (order.parts ?? []).map((part) => ({
+      ...part,
+      supplier: part.supplier?.trim() || DEFAULT_SUPPLIER,
+    })),
   }));
+}
+
+function sortableDate(order: WorkOrder): number {
+  const date = order.workDate || order.createdAt;
+  if (!date) return Number.NEGATIVE_INFINITY;
+
+  const isoDate = /^\d{4}-\d{2}-\d{2}(?:[T ].*)?$/.exec(date);
+  if (isoDate) {
+    const [year, month, day] = date.slice(0, 10).split('-').map(Number);
+    const timestamp = Date.UTC(year, month - 1, day);
+    return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+  }
+
+  const timestamp = Date.parse(date);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
 function readStoredOrders(): WorkOrder[] {
@@ -177,6 +198,12 @@ export default function WorkOrdersClient() {
     }
     if (sortKey) {
       result = [...result].sort((a, b) => {
+        if (sortKey === 'workDate') {
+          const av = sortableDate(a);
+          const bv = sortableDate(b);
+          return sortDir === 'asc' ? av - bv : bv - av;
+        }
+
         const av = a[sortKey as keyof WorkOrder];
         const bv = b[sortKey as keyof WorkOrder];
         if (typeof av === 'number' && typeof bv === 'number') {
@@ -377,11 +404,11 @@ export default function WorkOrdersClient() {
             <button type="button" onClick={setWeekRange} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Ova sedmica</button>
             <button type="button" onClick={() => setRecentRange(15)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 15 dana</button>
             <button type="button" onClick={() => setRecentRange(30)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 30 dana</button>
-            <label className="text-xs text-muted-foreground flex items-center gap-1 ml-auto">Od
-              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg" />
+            <label className="text-xs text-muted-foreground flex items-center gap-1">Od
+              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="h-8 px-2 py-1 text-xs bg-background border border-input rounded-lg" />
             </label>
             <label className="text-xs text-muted-foreground flex items-center gap-1">Do
-              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="px-2 py-1.5 text-xs bg-background border border-input rounded-lg" />
+              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="h-8 px-2 py-1 text-xs bg-background border border-input rounded-lg" />
             </label>
             {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setFinanceFilter(''); setPage(1); }} className="px-2 py-1.5 text-xs text-primary hover:underline">Očisti period</button>}
           </div>
@@ -705,7 +732,13 @@ function WorkOrderRow({
       }}
       tabIndex={0}
       className={`group transition-colors duration-100 ${
-        selected ? 'bg-primary/5' : 'hover:bg-muted/40'
+        selected
+          ? 'bg-primary/5'
+          : orderSupplierPaymentState(order, DEFAULT_SUPPLIER) === 'paid'
+            ? 'bg-emerald-50/80 hover:bg-emerald-100/70'
+            : orderSupplierPaymentState(order, DEFAULT_SUPPLIER) === 'partial'
+              ? 'bg-lime-50/70 hover:bg-lime-100/60'
+              : 'hover:bg-muted/40'
       } cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/40`}
     >
       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
