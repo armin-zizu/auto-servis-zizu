@@ -48,6 +48,10 @@ export default function WorkOrderViewModal({
     const rawPartsTotal = order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0);
     const customerDiscount = rawPartsTotal * (order.discountPct / 100);
 
+    const rawLaborTotal = order.laborEntries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
+    const priceBeforeDiscount = rawPartsTotal + rawLaborTotal;
+    const priceAfterDiscount = rawPartsTotal - customerDiscount + rawLaborTotal;
+
     printWindow.document.write(`
       <!doctype html>
       <html lang="bs">
@@ -95,10 +99,11 @@ export default function WorkOrderViewModal({
             ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
           </tbody></table>
           <div class="total">
-            <div><span>Dijelovi</span><strong>${money(order.partsTotal)}</strong></div>
-            ${order.discountPct > 0 ? `<div class="discount"><span>Popust klijentu (${order.discountPct}%)</span><strong>ušteda ${money(customerDiscount)}</strong></div>` : ''}
-            <div><span>Rad</span><strong>${money(order.laborTotal)}</strong></div>
-            <div class="grand"><span>Ukupno</span><strong>${money(order.orderTotal)}</strong></div>
+            <div><span>Dijelovi bez popusta</span><strong>${money(rawPartsTotal)}</strong></div>
+            <div><span>Rad</span><strong>${money(rawLaborTotal)}</strong></div>
+            <div><span>Cijena prije popusta</span><strong>${money(priceBeforeDiscount)}</strong></div>
+            ${order.discountPct > 0 ? `<div class="discount"><span>Popust klijentu (${order.discountPct}%)</span><strong>− ${money(customerDiscount)}</strong></div>` : ''}
+            <div class="grand"><span>${order.discountPct > 0 ? 'Ukupno sa popustom' : 'Ukupno'}</span><strong>${money(order.discountPct > 0 ? priceAfterDiscount : priceBeforeDiscount)}</strong></div>
           </div>
           ${order.notes ? `<div class="notes"><strong>Napomene</strong><p>${escapeHtml(order.notes)}</p></div>` : ''}
         </body>
@@ -207,39 +212,43 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
-          {order.estimateImage && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold text-foreground">Predračun</h4>
-              <button
-                type="button"
-                onClick={() => setSelectedPartImage(order.estimateImage || null)}
-                className="rounded-lg border border-border bg-muted/20 p-2 hover:bg-muted/40"
-              >
-                <img
-                  src={order.estimateImage}
-                  alt="Predračun uz radni nalog"
-                  className="h-36 max-w-full rounded object-contain"
-                />
-                <span className="mt-1 block text-xs text-primary">Otvori sliku</span>
-              </button>
-            </div>
-          )}
+          {(order.estimateImage || order.registrationImage) && (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {order.estimateImage && (
+                <div className="min-w-0">
+                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">Predračun / faktura</h4>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPartImage(order.estimateImage || null)}
+                    className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
+                  >
+                    <img
+                      src={order.estimateImage}
+                      alt="Predračun ili faktura uz radni nalog"
+                      className="h-28 w-full rounded object-contain sm:h-36"
+                    />
+                    <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">Otvori sliku</span>
+                  </button>
+                </div>
+              )}
 
-          {order.registrationImage && (
-            <div>
-              <h4 className="mb-2 text-sm font-semibold text-foreground">Saobraćajna dozvola</h4>
-              <button
-                type="button"
-                onClick={() => setSelectedPartImage(order.registrationImage || null)}
-                className="rounded-lg border border-border bg-muted/20 p-2 hover:bg-muted/40"
-              >
-                <img
-                  src={order.registrationImage}
-                  alt="Saobraćajna dozvola uz radni nalog"
-                  className="h-36 max-w-full rounded object-contain"
-                />
-                <span className="mt-1 block text-xs text-primary">Otvori sliku</span>
-              </button>
+              {order.registrationImage && (
+                <div className="min-w-0">
+                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">Saobraćajna dozvola</h4>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPartImage(order.registrationImage || null)}
+                    className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
+                  >
+                    <img
+                      src={order.registrationImage}
+                      alt="Saobraćajna dozvola uz radni nalog"
+                      className="h-28 w-full rounded object-contain sm:h-36"
+                    />
+                    <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">Otvori sliku</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 

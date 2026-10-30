@@ -720,25 +720,45 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </div>
             </div>
 
-            {estimateImage && (
-              <div className="mt-3 flex items-start gap-3 rounded-lg border border-border bg-background p-2">
-                <img
-                  src={estimateImage}
-                  alt="Fotografija predračuna"
-                  className="h-24 w-20 rounded object-cover"
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs font-medium text-foreground">Slika predračuna je dodana uz nalog</p>
-                  <p className="mt-1 text-xs text-muted-foreground">OCR se izvršava u browseru; prvi put može potrajati dok se učita jezički model.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setEstimateImage('')}
-                  aria-label="Ukloni sliku predračuna"
-                  className="rounded p-1 text-muted-foreground hover:bg-red-50 hover:text-red-600"
-                >
-                  <X size={16} />
-                </button>
+            {(estimateImage || registrationImage) && (
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
+                {estimateImage && (
+                  <div className="relative rounded-lg border border-border bg-background p-2">
+                    <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">Predračun / faktura</p>
+                    <img
+                      src={estimateImage}
+                      alt="Fotografija predračuna ili fakture"
+                      className="h-28 w-full rounded object-contain sm:h-32"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setEstimateImage('')}
+                      aria-label="Ukloni sliku predračuna ili fakture"
+                      className="absolute right-2 top-2 rounded-full bg-card p-1 text-muted-foreground shadow hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
+
+                {registrationImage && (
+                  <div className="relative rounded-lg border border-border bg-background p-2">
+                    <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">Saobraćajna dozvola</p>
+                    <img
+                      src={registrationImage}
+                      alt="Fotografija saobraćajne dozvole"
+                      className="h-28 w-full rounded object-contain sm:h-32"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setRegistrationImage('')}
+                      aria-label="Ukloni sliku saobraćajne dozvole"
+                      className="absolute right-2 top-2 rounded-full bg-card p-1 text-muted-foreground shadow hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
