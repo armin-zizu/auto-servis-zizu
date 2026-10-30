@@ -384,7 +384,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       }
       size="2xl"
       footer={
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <p className="text-xs text-muted-foreground">
             {isDirty && (
               <span className="flex items-center gap-1.5 text-amber-600">
@@ -393,11 +393,11 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </span>
             )}
           </p>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary hover:bg-muted rounded-lg transition-colors"
+              className="px-3 sm:px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary hover:bg-muted rounded-lg transition-colors"
             >
               Otkaži
             </button>
@@ -405,7 +405,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               type="submit"
               form="work-order-form"
               disabled={saving}
-              className="px-5 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-60 transition-all duration-150 active:scale-95 flex items-center gap-2 min-w-[130px] justify-center"
+              className="px-3 sm:px-5 py-2 text-xs sm:text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-60 transition-all duration-150 active:scale-95 flex items-center gap-2 min-w-0 sm:min-w-[130px] justify-center"
             >
               {saving ? (
                 <>
@@ -422,16 +422,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         </div>
       }
     >
-      <form id="work-order-form" onSubmit={handleSubmit(onSubmit)} className="space-y-7">
+      <form id="work-order-form" onSubmit={handleSubmit(onSubmit)} className="min-w-0 max-w-full overflow-x-hidden space-y-4 sm:space-y-7">
         {/* Sekcija 1: Klijent */}
         <section>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
               1
             </span>
             Podaci o klijentu
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
                 Datum radnog naloga
@@ -521,13 +521,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
 
         {/* Sekcija 2: Vozilo */}
         <section>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
               2
             </span>
             Podaci o vozilu
           </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-3 sm:mb-4">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
                 Godina <span className="text-red-500">*</span>
@@ -591,13 +591,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
 
         {/* Sekcija 3: Dodjela */}
         <section>
-          <h3 className="text-sm font-semibold text-foreground mb-4 flex items-center gap-2">
+          <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 flex items-center gap-2">
             <span className="w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-bold">
               3
             </span>
             Dodjela i status
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 sm:gap-4">
             <div>
               <label className="block text-xs font-medium text-foreground mb-1.5">
                 Dodijeljeni majstor <span className="text-red-500">*</span>
@@ -723,40 +723,44 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             {(estimateImage || registrationImage) && (
               <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
                 {estimateImage && (
-                  <div className="relative rounded-lg border border-border bg-background p-2">
+                  <div className="rounded-lg border border-border bg-background p-2">
                     <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">Predračun / faktura</p>
-                    <img
-                      src={estimateImage}
-                      alt="Fotografija predračuna ili fakture"
-                      className="h-28 w-full rounded object-contain sm:h-32"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setEstimateImage('')}
-                      aria-label="Ukloni sliku predračuna ili fakture"
-                      className="absolute right-2 top-2 rounded-full bg-card p-1 text-muted-foreground shadow hover:bg-red-50 hover:text-red-600"
-                    >
-                      <X size={14} />
-                    </button>
+                    <div className="relative">
+                      <img
+                        src={estimateImage}
+                        alt="Fotografija predračuna ili fakture"
+                        className="h-28 w-full rounded object-contain sm:h-32"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setEstimateImage('')}
+                        aria-label="Ukloni sliku predračuna ili fakture"
+                        className="absolute right-2 top-2 rounded-full bg-card p-1 text-muted-foreground shadow hover:bg-red-50 hover:text-red-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 )}
 
                 {registrationImage && (
-                  <div className="relative rounded-lg border border-border bg-background p-2">
+                  <div className="rounded-lg border border-border bg-background p-2">
                     <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">Saobraćajna dozvola</p>
-                    <img
-                      src={registrationImage}
-                      alt="Fotografija saobraćajne dozvole"
-                      className="h-28 w-full rounded object-contain sm:h-32"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setRegistrationImage('')}
-                      aria-label="Ukloni sliku saobraćajne dozvole"
-                      className="absolute right-2 top-2 rounded-full bg-card p-1 text-muted-foreground shadow hover:bg-red-50 hover:text-red-600"
-                    >
-                      <X size={14} />
-                    </button>
+                    <div className="relative">
+                      <img
+                        src={registrationImage}
+                        alt="Fotografija saobraćajne dozvole"
+                        className="h-28 w-full rounded object-contain sm:h-32"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setRegistrationImage('')}
+                        aria-label="Ukloni sliku saobraćajne dozvole"
+                        className="absolute right-2 top-2 rounded-full bg-card p-1 text-muted-foreground shadow hover:bg-red-50 hover:text-red-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -808,10 +812,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           </select>
                         </td>
                         <td className="p-2">
-                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Količina prepoznatog dijela" />
+                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Količina prepoznatog dijela" />
                         </td>
                         <td className="p-2">
-                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5 text-right" aria-label="Cijena prepoznatog dijela sa PDV-om" />
+                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Cijena prepoznatog dijela sa PDV-om" />
                         </td>
                         <td className="p-2 text-right font-medium tabular-nums">
                           {(part.qty * part.unitCost).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -921,7 +925,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         min={1}
                         step={1}
                         {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 1 })}
-                        className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md text-right"
+                        className="w-full appearance-none px-3 py-2 text-sm bg-background border border-input rounded-md text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </div>
                     <div>
@@ -932,7 +936,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         min={0}
                         step={0.01}
                         {...register(`parts.${idx}.unitCost`, { valueAsNumber: true, min: 0 })}
-                        className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md text-right"
+                        className="w-full appearance-none px-3 py-2 text-sm bg-background border border-input rounded-md text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </div>
                   </div>
@@ -1073,7 +1077,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                             valueAsNumber: true,
                             min: 1,
                           })}
-                          className="w-full px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
+                          className="w-full appearance-none px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       </td>
                       <td className="px-3 py-2">
@@ -1090,7 +1094,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                               valueAsNumber: true,
                               min: 0,
                             })}
-                            className="w-full pl-2 pr-8 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums"
+                            className="w-full appearance-none pl-2 pr-8 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
                         </div>
                       </td>

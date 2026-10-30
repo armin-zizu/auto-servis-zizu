@@ -333,6 +333,16 @@ export default function WorkOrdersClient() {
     setEditOrder(null);
   };
 
+  const handleRemoveOrderImage = (image: 'estimateImage' | 'registrationImage') => {
+    if (!viewOrder) return;
+    const updatedOrder = { ...viewOrder, [image]: undefined };
+    const next = orders.map((item) => item.id === viewOrder.id ? updatedOrder : item);
+    setOrders(next);
+    setViewOrder(updatedOrder);
+    persistOrders(next);
+    toast.success('Slika je obrisana sa naloga');
+  };
+
   const handleStatusChange = (id: string, newStatus: OrderStatus) => {
     const order = orders.find((item) => item.id === id);
     if (newStatus === 'Zatvoren' && order) {
@@ -679,6 +689,7 @@ export default function WorkOrdersClient() {
             setViewOrder(null);
             handleStatusChange(viewOrder.id, 'Zatvoren');
           }}
+          onRemoveImage={handleRemoveOrderImage}
         />
       )}
 

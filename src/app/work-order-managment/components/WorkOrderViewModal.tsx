@@ -10,6 +10,7 @@ import {
   Wrench,
   FileText,
   UserCircle2,
+  X,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -22,6 +23,7 @@ interface WorkOrderViewModalProps {
   order: WorkOrder;
   onEdit: () => void;
   onCloseOrder: () => void;
+  onRemoveImage: (image: 'estimateImage' | 'registrationImage') => void;
 }
 
 export default function WorkOrderViewModal({
@@ -30,6 +32,7 @@ export default function WorkOrderViewModal({
   order,
   onEdit,
   onCloseOrder,
+  onRemoveImage,
 }: WorkOrderViewModalProps) {
   const [selectedPartImage, setSelectedPartImage] = React.useState<string | null>(null);
   const serviceProfit = orderServiceProfit(order);
@@ -165,22 +168,22 @@ export default function WorkOrderViewModal({
           </div>
 
           {/* Info grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Phone size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Klijent</p>
                 <p className="text-sm font-semibold text-foreground">{order.clientName}</p>
                 <p className="text-xs text-muted-foreground">{order.clientPhone}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Car size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Vozilo</p>
                 <p className="text-sm font-semibold text-foreground">{order.vehicle}</p>
                 {order.vehicleVin && (
@@ -188,20 +191,20 @@ export default function WorkOrderViewModal({
                 )}
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Wrench size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Majstor</p>
                 <p className="text-sm font-semibold text-foreground">{order.mechanic}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <UserCircle2 size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Nalog kreirao</p>
                 <p className="text-sm font-semibold text-foreground">{order.createdBy || '—'}</p>
                 <p className="text-xs text-muted-foreground">
@@ -217,7 +220,8 @@ export default function WorkOrderViewModal({
               {order.estimateImage && (
                 <div className="min-w-0">
                   <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">Predračun / faktura</h4>
-                  <button
+                  <div className="relative">
+                    <button
                     type="button"
                     onClick={() => setSelectedPartImage(order.estimateImage || null)}
                     className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
@@ -228,14 +232,19 @@ export default function WorkOrderViewModal({
                       className="h-28 w-full rounded object-contain sm:h-36"
                     />
                     <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">Otvori sliku</span>
-                  </button>
+                    </button>
+                    <button type="button" aria-label="Obriši fakturu sa naloga" title="Obriši sliku" onClick={() => onRemoveImage('estimateImage')} className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600">
+                      <X size={15} />
+                    </button>
+                  </div>
                 </div>
               )}
 
               {order.registrationImage && (
                 <div className="min-w-0">
                   <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">Saobraćajna dozvola</h4>
-                  <button
+                  <div className="relative">
+                    <button
                     type="button"
                     onClick={() => setSelectedPartImage(order.registrationImage || null)}
                     className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
@@ -246,7 +255,11 @@ export default function WorkOrderViewModal({
                       className="h-28 w-full rounded object-contain sm:h-36"
                     />
                     <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">Otvori sliku</span>
-                  </button>
+                    </button>
+                    <button type="button" aria-label="Obriši saobraćajnu dozvolu sa naloga" title="Obriši sliku" onClick={() => onRemoveImage('registrationImage')} className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600">
+                      <X size={15} />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -255,7 +268,58 @@ export default function WorkOrderViewModal({
           {/* Tabela dijelova */}
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
-            <div className="rounded-lg border border-border overflow-x-auto">
+            <div className="space-y-2 sm:hidden">
+              {order.parts.map((part) => (
+                <div key={part.id} className="min-w-0 rounded-lg border border-border bg-background p-3">
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-sm font-medium text-foreground">
+                      {part.name}{part.category === 'oil' ? ' (ulje)' : ''}
+                    </p>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                      {(part.qty * part.unitCost).toFixed(2)} KM
+                    </p>
+                  </div>
+                  {part.images?.length || part.image ? (
+                    <div className="mt-2 flex gap-1.5">
+                      {(part.images || (part.image ? [part.image] : [])).map((image, imageIndex) => (
+                        <button
+                          key={`${part.id}-mobile-view-image-${imageIndex}`}
+                          type="button"
+                          onClick={() => setSelectedPartImage(image)}
+                          className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                          title="Otvori sliku dijela"
+                        >
+                          <img src={image} alt={`Slika dijela ${part.name} ${imageIndex + 1}`} className="h-12 w-12 rounded border border-border object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Količina</p>
+                      <p className="mt-0.5 tabular-nums text-foreground">{part.qty}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground">Jed. cijena</p>
+                      <p className="mt-0.5 tabular-nums text-foreground">{part.unitCost.toFixed(2)} KM</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {order.discountPct > 0 && (
+                <div className="flex justify-between gap-2 rounded-lg bg-emerald-50/50 px-3 py-2 text-xs text-emerald-700">
+                  <span>Popust za klijenta ({order.discountPct}%)</span>
+                  <span className="shrink-0 tabular-nums">
+                    -{((order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0) * order.discountPct) / 100).toFixed(2)} KM
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between gap-2 rounded-lg border-t-2 border-border bg-muted/30 px-3 py-2.5 text-sm font-bold text-foreground">
+                <span>Ukupno dijelovi</span>
+                <span className="shrink-0 tabular-nums">{order.partsTotal.toFixed(2)} KM</span>
+              </div>
+            </div>
+            <div className="hidden rounded-lg border border-border overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/40 border-b border-border">
