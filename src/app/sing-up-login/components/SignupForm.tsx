@@ -46,7 +46,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
   const watchedRole = watch('role');
   const watchedPassword = watch('password');
 
-  const onSubmit = async (data: SignupValues) => {
+  const onSubmit = async () => {
     setLoading(true);
     await new Promise((r) => setTimeout(r, 1000));
     // Backend integration point: POST /api/auth/signup { fullName, shopName, email, password, role }
@@ -75,17 +75,13 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-semibold text-foreground">Kreirajte nalog</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Postavite AutoServis za vašu radionicu
-        </p>
+        <p className="text-sm text-muted-foreground mt-1">Postavite AutoServis za vašu radionicu</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
         {/* Odabir uloge */}
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Ja sam…
-          </label>
+          <label className="block text-sm font-medium text-foreground mb-2">Ja sam…</label>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
             {(['owner', 'mechanic'] as const).map((r) => (
               <label
@@ -93,15 +89,11 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
                 className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all duration-150
                   ${
                     watchedRole === r
-                      ? 'border-primary bg-primary/5' :'border-border hover:border-primary/40 hover:bg-muted/30'
+                      ? 'border-primary bg-primary/5'
+                      : 'border-border hover:border-primary/40 hover:bg-muted/30'
                   }`}
               >
-                <input
-                  type="radio"
-                  value={r}
-                  {...register('role')}
-                  className="accent-primary"
-                />
+                <input type="radio" value={r} {...register('role')} className="accent-primary" />
                 <div>
                   <p className="text-sm font-medium text-foreground capitalize">
                     {r === 'owner' ? 'Vlasnik radionice' : 'Majstor'}
@@ -122,7 +114,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
           </label>
           <input
             type="text"
-                placeholder="npr. Armin Mujić"
+            placeholder="npr. Armin Mujić"
             autoComplete="name"
             {...register('fullName', { required: 'Puno ime je obavezno' })}
             className="w-full px-3.5 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
@@ -173,9 +165,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
             })}
             className="w-full px-3.5 py-2.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
           />
-          {errors.email && (
-            <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>
-          )}
+          {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email.message}</p>}
         </div>
 
         {/* Lozinka */}
@@ -183,9 +173,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
           <label className="block text-sm font-medium text-foreground mb-1.5">
             Lozinka <span className="text-red-500">*</span>
           </label>
-          <p className="text-xs text-muted-foreground mb-1.5">
-            Minimum 8 znakova
-          </p>
+          <p className="text-xs text-muted-foreground mb-1.5">Minimum 8 znakova</p>
           <div className="relative">
             <input
               type={showPassword ? 'text' : 'password'}
@@ -223,8 +211,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
               autoComplete="new-password"
               {...register('confirmPassword', {
                 required: 'Molimo potvrdite lozinku',
-                validate: (val) =>
-                  val === watchedPassword || 'Lozinke se ne podudaraju',
+                validate: (val) => val === watchedPassword || 'Lozinke se ne podudaraju',
               })}
               className="w-full px-3.5 py-2.5 pr-10 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
             />
@@ -252,11 +239,16 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
             })}
             className="rounded border-input accent-primary mt-0.5"
           />
-          <label htmlFor="agreeToTerms" className="text-sm text-muted-foreground cursor-pointer leading-relaxed">
+          <label
+            htmlFor="agreeToTerms"
+            className="text-sm text-muted-foreground cursor-pointer leading-relaxed"
+          >
             Slažem se s{' '}
             <span className="text-primary hover:underline cursor-pointer">Uvjetima korištenja</span>{' '}
             i{' '}
-            <span className="text-primary hover:underline cursor-pointer">Politikom privatnosti</span>
+            <span className="text-primary hover:underline cursor-pointer">
+              Politikom privatnosti
+            </span>
           </label>
         </div>
         {errors.agreeToTerms && (
@@ -282,10 +274,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
 
       <p className="text-center text-sm text-muted-foreground">
         Već imate nalog?{' '}
-        <button
-          onClick={onSwitchToLogin}
-          className="text-primary font-medium hover:underline"
-        >
+        <button onClick={onSwitchToLogin} className="text-primary font-medium hover:underline">
           Prijavite se
         </button>
       </p>

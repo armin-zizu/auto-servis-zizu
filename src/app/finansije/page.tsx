@@ -84,13 +84,17 @@ export default function FinancePage() {
             Dashboard
           </Link>
           <h1 className="text-2xl font-semibold text-foreground mt-2">Finansije</h1>
-          <p className="text-sm text-muted-foreground mt-1">Pregled prihoda nakon popusta klijentu, troška dijelova i ručno evidentiranih isplata.</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Pregled prihoda nakon popusta klijentu, troška dijelova i ručno evidentiranih isplata.
+          </p>
         </div>
 
         <FinancePeriodPicker period={period} onChange={setPeriod} />
 
         <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-          <h2 className="font-semibold text-foreground">Finansijski pregled · {finance.closedOrders} zatvorenih naloga</h2>
+          <h2 className="font-semibold text-foreground">
+            Finansijski pregled · {finance.closedOrders} zatvorenih naloga
+          </h2>
           <span className="text-xs text-muted-foreground">{periodLabel}</span>
         </div>
 
@@ -125,5 +129,3 @@ export default function FinancePage() {
     </AppLayout>
   );
 }
-
-

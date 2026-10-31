@@ -5,16 +5,12 @@ import dynamic from 'next/dynamic';
 
 const RevenueBarChart = dynamic(() => import('./RevenueBarChart'), {
   ssr: false,
-  loading: () => (
-    <div className="animate-pulse bg-muted rounded-xl h-64 w-full" />
-  ),
+  loading: () => <div className="animate-pulse bg-muted rounded-xl h-64 w-full" />,
 });
 
 const OrderStatusPieChart = dynamic(() => import('./OrderStatusPieChart'), {
   ssr: false,
-  loading: () => (
-    <div className="animate-pulse bg-muted rounded-xl h-64 w-full" />
-  ),
+  loading: () => <div className="animate-pulse bg-muted rounded-xl h-64 w-full" />,
 });
 
 export default function DashboardChartsRow() {

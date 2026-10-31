@@ -2,10 +2,10 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://bqemtqersutsyyhjofco.supabase.co';
+const supabaseUrl =
+  process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://bqemtqersutsyyhjofco.supabase.co';
 const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
-  'sb_publishable_zGald0jnAk9QHmF-ylYibg_Jg1W5at1';
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_zGald0jnAk9QHmF-ylYibg_Jg1W5at1';
 
 let client: SupabaseClient | null = null;
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import {
   CheckSquare,
   Edit2,
@@ -51,7 +52,10 @@ export default function WorkOrderViewModal({
     const rawPartsTotal = order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0);
     const customerDiscount = rawPartsTotal * (order.discountPct / 100);
 
-    const rawLaborTotal = order.laborEntries.reduce((sum, entry) => sum + entry.hours * entry.rate, 0);
+    const rawLaborTotal = order.laborEntries.reduce(
+      (sum, entry) => sum + entry.hours * entry.rate,
+      0
+    );
     const priceBeforeDiscount = rawPartsTotal + rawLaborTotal;
     const priceAfterDiscount = rawPartsTotal - customerDiscount + rawLaborTotal;
 
@@ -219,21 +223,34 @@ export default function WorkOrderViewModal({
             <div className="grid grid-cols-2 gap-2 sm:gap-3">
               {order.estimateImage && (
                 <div className="min-w-0">
-                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">Predračun / faktura</h4>
+                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">
+                    Predračun / faktura
+                  </h4>
                   <div className="relative">
                     <button
-                    type="button"
-                    onClick={() => setSelectedPartImage(order.estimateImage || null)}
-                    className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
-                  >
-                    <img
-                      src={order.estimateImage}
-                      alt="Predračun ili faktura uz radni nalog"
-                      className="h-28 w-full rounded object-contain sm:h-36"
-                    />
-                    <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">Otvori sliku</span>
+                      type="button"
+                      onClick={() => setSelectedPartImage(order.estimateImage || null)}
+                      className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
+                    >
+                      <Image
+                        src={order.estimateImage}
+                        alt="Predračun ili faktura uz radni nalog"
+                        width={400}
+                        height={180}
+                        unoptimized
+                        className="h-28 w-full rounded object-contain sm:h-36"
+                      />
+                      <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">
+                        Otvori sliku
+                      </span>
                     </button>
-                    <button type="button" aria-label="Obriši fakturu sa naloga" title="Obriši sliku" onClick={() => onRemoveImage('estimateImage')} className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600">
+                    <button
+                      type="button"
+                      aria-label="Obriši fakturu sa naloga"
+                      title="Obriši sliku"
+                      onClick={() => onRemoveImage('estimateImage')}
+                      className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600"
+                    >
                       <X size={15} />
                     </button>
                   </div>
@@ -242,21 +259,34 @@ export default function WorkOrderViewModal({
 
               {order.registrationImage && (
                 <div className="min-w-0">
-                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">Saobraćajna dozvola</h4>
+                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">
+                    Saobraćajna dozvola
+                  </h4>
                   <div className="relative">
                     <button
-                    type="button"
-                    onClick={() => setSelectedPartImage(order.registrationImage || null)}
-                    className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
-                  >
-                    <img
-                      src={order.registrationImage}
-                      alt="Saobraćajna dozvola uz radni nalog"
-                      className="h-28 w-full rounded object-contain sm:h-36"
-                    />
-                    <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">Otvori sliku</span>
+                      type="button"
+                      onClick={() => setSelectedPartImage(order.registrationImage || null)}
+                      className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
+                    >
+                      <Image
+                        src={order.registrationImage}
+                        alt="Saobraćajna dozvola uz radni nalog"
+                        width={400}
+                        height={180}
+                        unoptimized
+                        className="h-28 w-full rounded object-contain sm:h-36"
+                      />
+                      <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">
+                        Otvori sliku
+                      </span>
                     </button>
-                    <button type="button" aria-label="Obriši saobraćajnu dozvolu sa naloga" title="Obriši sliku" onClick={() => onRemoveImage('registrationImage')} className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600">
+                    <button
+                      type="button"
+                      aria-label="Obriši saobraćajnu dozvolu sa naloga"
+                      title="Obriši sliku"
+                      onClick={() => onRemoveImage('registrationImage')}
+                      className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600"
+                    >
                       <X size={15} />
                     </button>
                   </div>
@@ -270,10 +300,14 @@ export default function WorkOrderViewModal({
             <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
             <div className="space-y-2 sm:hidden">
               {order.parts.map((part) => (
-                <div key={part.id} className="min-w-0 rounded-lg border border-border bg-background p-3">
+                <div
+                  key={part.id}
+                  className="min-w-0 rounded-lg border border-border bg-background p-3"
+                >
                   <div className="flex min-w-0 items-start justify-between gap-2">
                     <p className="min-w-0 break-words text-sm font-medium text-foreground">
-                      {part.name}{part.category === 'oil' ? ' (ulje)' : ''}
+                      {part.name}
+                      {part.category === 'oil' ? ' (ulje)' : ''}
                     </p>
                     <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
                       {(part.qty * part.unitCost).toFixed(2)} KM
@@ -281,17 +315,26 @@ export default function WorkOrderViewModal({
                   </div>
                   {part.images?.length || part.image ? (
                     <div className="mt-2 flex gap-1.5">
-                      {(part.images || (part.image ? [part.image] : [])).map((image, imageIndex) => (
-                        <button
-                          key={`${part.id}-mobile-view-image-${imageIndex}`}
-                          type="button"
-                          onClick={() => setSelectedPartImage(image)}
-                          className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
-                          title="Otvori sliku dijela"
-                        >
-                          <img src={image} alt={`Slika dijela ${part.name} ${imageIndex + 1}`} className="h-12 w-12 rounded border border-border object-cover" />
-                        </button>
-                      ))}
+                      {(part.images || (part.image ? [part.image] : [])).map(
+                        (image, imageIndex) => (
+                          <button
+                            key={`${part.id}-mobile-view-image-${imageIndex}`}
+                            type="button"
+                            onClick={() => setSelectedPartImage(image)}
+                            className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                            title="Otvori sliku dijela"
+                          >
+                            <Image
+                              src={image}
+                              alt={`Slika dijela ${part.name} ${imageIndex + 1}`}
+                              width={48}
+                              height={48}
+                              unoptimized
+                              className="h-12 w-12 rounded border border-border object-cover"
+                            />
+                          </button>
+                        )
+                      )}
                     </div>
                   ) : null}
                   <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 text-xs">
@@ -301,7 +344,9 @@ export default function WorkOrderViewModal({
                     </div>
                     <div className="text-right">
                       <p className="text-muted-foreground">Jed. cijena</p>
-                      <p className="mt-0.5 tabular-nums text-foreground">{part.unitCost.toFixed(2)} KM</p>
+                      <p className="mt-0.5 tabular-nums text-foreground">
+                        {part.unitCost.toFixed(2)} KM
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -310,7 +355,13 @@ export default function WorkOrderViewModal({
                 <div className="flex justify-between gap-2 rounded-lg bg-emerald-50/50 px-3 py-2 text-xs text-emerald-700">
                   <span>Popust za klijenta ({order.discountPct}%)</span>
                   <span className="shrink-0 tabular-nums">
-                    -{((order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0) * order.discountPct) / 100).toFixed(2)} KM
+                    -
+                    {(
+                      (order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0) *
+                        order.discountPct) /
+                      100
+                    ).toFixed(2)}{' '}
+                    KM
                   </span>
                 </div>
               )}
@@ -359,9 +410,12 @@ export default function WorkOrderViewModal({
                                   className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
                                   title="Otvori sliku dijela"
                                 >
-                                  <img
+                                  <Image
                                     src={image}
                                     alt={`Slika dijela ${part.name} ${imageIndex + 1}`}
+                                    width={48}
+                                    height={48}
+                                    unoptimized
                                     className="h-12 w-12 rounded object-cover border border-border"
                                   />
                                 </button>
@@ -531,9 +585,12 @@ export default function WorkOrderViewModal({
         size="lg"
       >
         {selectedPartImage && (
-          <img
+          <Image
             src={selectedPartImage}
             alt="Uvećana slika zamijenjenog dijela"
+            width={1200}
+            height={900}
+            unoptimized
             className="max-h-[65vh] w-full object-contain rounded-lg"
           />
         )}

@@ -1,8 +1,19 @@
 ﻿'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
-import { Plus, Trash2, Calculator, AlertCircle, FileText, Loader2, Upload, Camera, X } from 'lucide-react';
+import {
+  Plus,
+  Trash2,
+  Calculator,
+  AlertCircle,
+  FileText,
+  Loader2,
+  Upload,
+  Camera,
+  X,
+} from 'lucide-react';
+import Image from 'next/image';
 import Modal from '@/components/ui/Modal';
 import Tesseract from 'tesseract.js';
 import {
@@ -98,9 +109,9 @@ function findVinInOcrText(text: string): string | null {
 }
 
 function findVinLabelLines(page: Tesseract.Page) {
-  return (page.blocks ?? []).flatMap((block) =>
-    block.paragraphs.flatMap((paragraph) => paragraph.lines)
-  ).filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line.text));
+  return (page.blocks ?? [])
+    .flatMap((block) => block.paragraphs.flatMap((paragraph) => paragraph.lines))
+    .filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line.text));
 }
 
 function cropRegistrationVinRow(image: HTMLCanvasElement, y0: number, y1: number) {
@@ -185,12 +196,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   useEffect(() => {
     const refreshSuppliers = () => {
       const storedSuppliers = readCache<string[]>(SUPPLIERS_STORAGE_KEY, DEFAULT_SUPPLIERS);
-      const uniqueSuppliers = Array.from(new Set(
-        storedSuppliers.map((supplier) => supplier.trim()).filter(Boolean)
-      ));
+      const uniqueSuppliers = Array.from(
+        new Set(storedSuppliers.map((supplier) => supplier.trim()).filter(Boolean))
+      );
       setAvailableSuppliers([
         DEFAULT_SUPPLIER,
-        ...uniqueSuppliers.filter((supplier) => supplier.toLocaleLowerCase() !== DEFAULT_SUPPLIER.toLocaleLowerCase()),
+        ...uniqueSuppliers.filter(
+          (supplier) => supplier.toLocaleLowerCase() !== DEFAULT_SUPPLIER.toLocaleLowerCase()
+        ),
       ]);
     };
     refreshSuppliers();
@@ -213,9 +226,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     return [...clients.values()];
   }, [savedClientOrders]);
   const matchingClients = clientSearchTerm.trim()
-    ? savedClients.filter((client) =>
-        client.clientName.toLocaleLowerCase().includes(clientSearchTerm.trim().toLocaleLowerCase())
-      ).slice(0, 8)
+    ? savedClients
+        .filter((client) =>
+          client.clientName
+            .toLocaleLowerCase()
+            .includes(clientSearchTerm.trim().toLocaleLowerCase())
+        )
+        .slice(0, 8)
     : [];
 
   const applySavedClient = (client: WorkOrder) => {
@@ -223,7 +240,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     setValue('clientPhone', client.clientPhone || '', { shouldDirty: true });
     setValue('vehicleYear', client.vehicleYear || '', { shouldDirty: true, shouldValidate: true });
     setValue('vehicleMake', client.vehicleMake || '', { shouldDirty: true, shouldValidate: true });
-    setValue('vehicleModel', client.vehicleModel || '', { shouldDirty: true, shouldValidate: true });
+    setValue('vehicleModel', client.vehicleModel || '', {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
     setValue('vehicleVin', client.vehicleVin || '', { shouldDirty: true });
   };
 
@@ -247,7 +267,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       status: 'Otvoren',
       discountPct: 0,
       notes: '',
-      parts: [{ id: 'part-new-1', name: '', qty: 1, unitCost: 0, category: 'part', supplier: DEFAULT_SUPPLIER }],
+      parts: [
+        {
+          id: 'part-new-1',
+          name: '',
+          qty: 1,
+          unitCost: 0,
+          category: 'part',
+          supplier: DEFAULT_SUPPLIER,
+        },
+      ],
       laborEntries: [{ id: 'labor-new-1', description: 'Ruke', hours: 1, rate: 0 }],
     },
   });
@@ -278,7 +307,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       setEstimateImage(order?.estimateImage ?? '');
       setRegistrationImage(order?.registrationImage ?? '');
       setOrderSupplier(
-        order?.supplier?.trim() || order?.parts.find((part) => part.supplier?.trim())?.supplier?.trim() || DEFAULT_SUPPLIER
+        order?.supplier?.trim() ||
+          order?.parts.find((part) => part.supplier?.trim())?.supplier?.trim() ||
+          DEFAULT_SUPPLIER
       );
       setEstimateParts([]);
       setEstimateMessage('');
@@ -295,7 +326,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           status: order.status,
           discountPct: order.discountPct,
           notes: order.notes,
-          parts: order.parts.map((part) => ({ ...part, supplier: part.supplier?.trim() || DEFAULT_SUPPLIER })),
+          parts: order.parts.map((part) => ({
+            ...part,
+            supplier: part.supplier?.trim() || DEFAULT_SUPPLIER,
+          })),
           laborEntries: order.laborEntries.map((entry) => ({
             ...entry,
             hours: 1,
@@ -315,7 +349,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           status: 'Otvoren',
           discountPct: 0,
           notes: '',
-          parts: [{ id: 'part-new-1', name: '', qty: 1, unitCost: 0, category: 'part', supplier: DEFAULT_SUPPLIER }],
+          parts: [
+            {
+              id: 'part-new-1',
+              name: '',
+              qty: 1,
+              unitCost: 0,
+              category: 'part',
+              supplier: DEFAULT_SUPPLIER,
+            },
+          ],
           laborEntries: [{ id: 'labor-new-1', description: 'Ruke', hours: 1, rate: 0 }],
         });
       }
@@ -372,7 +415,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       );
     } catch (error) {
       console.error('OCR predračuna nije uspio:', error);
-      setEstimateMessage('Slika je dodana, ali prepoznavanje nije uspjelo. Provjerite vezu i unesite stavke ručno.');
+      setEstimateMessage(
+        'Slika je dodana, ali prepoznavanje nije uspjelo. Provjerite vezu i unesite stavke ručno.'
+      );
     } finally {
       if (worker) {
         try {
@@ -422,16 +467,18 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         });
         const result = await worker.recognize(ocrImages[index], {}, { blocks: true });
         const vinLines = findVinLabelLines(result.data);
-        vin = vinLines
-          .map((line) => findVinInOcrText(line.text))
-          .find((candidate): candidate is string => Boolean(candidate)) ?? null;
+        vin =
+          vinLines
+            .map((line) => findVinInOcrText(line.text))
+            .find((candidate): candidate is string => Boolean(candidate)) ?? null;
         if (!vin) {
           const labeledTextLines = result.data.text
             .split(/\r?\n/)
             .filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line));
-          vin = labeledTextLines
-            .map((line) => findVinInOcrText(line))
-            .find((candidate): candidate is string => Boolean(candidate)) ?? null;
+          vin =
+            labeledTextLines
+              .map((line) => findVinInOcrText(line))
+              .find((candidate): candidate is string => Boolean(candidate)) ?? null;
         }
         if (!vin && vinLines.length) {
           await worker.setParameters({
@@ -450,11 +497,15 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         setValue('vehicleVin', vin, { shouldDirty: true, shouldValidate: true });
         setEstimateMessage(`Prepoznat VIN: ${vin}. Provjerite da li je tačno pročitan.`);
       } else {
-        setEstimateMessage('Saobraćajna je sačuvana, ali VIN nije jasno prepoznat. Unesite ga ručno u polje VIN.');
+        setEstimateMessage(
+          'Saobraćajna je sačuvana, ali VIN nije jasno prepoznat. Unesite ga ručno u polje VIN.'
+        );
       }
     } catch (error) {
       console.error('OCR saobraćajne nije uspio:', error);
-      setEstimateMessage('Saobraćajna je dodana, ali prepoznavanje VIN-a nije uspjelo. Unesite VIN ručno.');
+      setEstimateMessage(
+        'Saobraćajna je dodana, ali prepoznavanje VIN-a nije uspjelo. Unesite VIN ručno.'
+      );
     } finally {
       if (worker) {
         try {
@@ -467,7 +518,11 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     }
   };
 
-  const updateEstimatePart = (id: string, field: 'name' | 'qty' | 'unitCost' | 'category', value: string) => {
+  const updateEstimatePart = (
+    id: string,
+    field: 'name' | 'qty' | 'unitCost' | 'category',
+    value: string
+  ) => {
     setEstimateParts((current) =>
       current.map((part) => {
         if (part.id !== id) return part;
@@ -484,7 +539,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       (part) => part.name.trim() && Number(part.qty) > 0 && Number(part.unitCost) > 0
     );
     if (!validParts.length) return;
-    validParts.forEach((part) => appendPart({ ...part, id: `estimate-${Date.now()}-${Math.random()}`, supplier: orderSupplier }));
+    validParts.forEach((part) =>
+      appendPart({
+        ...part,
+        id: `estimate-${Date.now()}-${Math.random()}`,
+        supplier: orderSupplier,
+      })
+    );
     if (
       watchedParts.length === 1 &&
       !watchedParts[0]?.name?.trim() &&
@@ -493,7 +554,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       removePart(0);
     }
     setEstimateParts([]);
-    setEstimateMessage(`Dodano ${validParts.length} stavki u nalog. Pregledajte ih prije spremanja.`);
+    setEstimateMessage(
+      `Dodano ${validParts.length} stavki u nalog. Pregledajte ih prije spremanja.`
+    );
   };
 
   const onSubmit = async (data: FormValues) => {
@@ -591,7 +654,11 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         </div>
       }
     >
-      <form id="work-order-form" onSubmit={handleSubmit(onSubmit)} className="min-w-0 max-w-full overflow-x-hidden space-y-4 sm:space-y-7">
+      <form
+        id="work-order-form"
+        onSubmit={handleSubmit(onSubmit)}
+        className="min-w-0 max-w-full overflow-x-hidden space-y-4 sm:space-y-7"
+      >
         {partQuantityInputs}
         {/* Sekcija 1: Klijent */}
         <section>
@@ -620,15 +687,19 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 type="text"
                 placeholder="npr. Rafael Dominguez"
                 autoComplete="off"
+                role="combobox"
                 aria-autocomplete="list"
                 aria-expanded={matchingClients.length > 0}
+                aria-controls="saved-client-options"
                 {...register('clientName', { required: 'Ime klijenta je obavezno' })}
                 onChange={(event) => {
                   const name = event.currentTarget.value;
                   setClientSearchTerm(name);
                   setValue('clientName', name, { shouldDirty: true, shouldValidate: true });
                   const exactMatch = savedClients.find(
-                    (client) => client.clientName.trim().toLocaleLowerCase() === name.trim().toLocaleLowerCase()
+                    (client) =>
+                      client.clientName.trim().toLocaleLowerCase() ===
+                      name.trim().toLocaleLowerCase()
                   );
                   if (exactMatch) applySavedClient(exactMatch);
                 }}
@@ -636,6 +707,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               />
               {matchingClients.length > 0 && (
                 <ul
+                  id="saved-client-options"
                   role="listbox"
                   className="absolute left-0 right-0 top-full z-50 mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-card py-1 shadow-lg"
                 >
@@ -657,11 +729,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                             {client.clientName}
                           </span>
                           <span className="block truncate text-xs text-muted-foreground">
-                            {client.vehicle || `${client.vehicleYear} ${client.vehicleMake} ${client.vehicleModel}`.trim()}
+                            {client.vehicle ||
+                              `${client.vehicleYear} ${client.vehicleMake} ${client.vehicleModel}`.trim()}
                           </span>
                         </span>
                         {client.clientPhone && (
-                          <span className="shrink-0 text-xs text-muted-foreground">{client.clientPhone}</span>
+                          <span className="shrink-0 text-xs text-muted-foreground">
+                            {client.clientPhone}
+                          </span>
                         )}
                       </button>
                     </li>
@@ -833,7 +908,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                   aria-label="Dobavljač naloga"
                 >
                   {availableSuppliers.map((supplier) => (
-                    <option key={`order-supplier-${supplier}`} value={supplier}>{supplier}</option>
+                    <option key={`order-supplier-${supplier}`} value={supplier}>
+                      {supplier}
+                    </option>
                   ))}
                 </select>
               </label>
@@ -864,7 +941,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 <div>
                   <p className="text-sm font-semibold text-foreground">Predračun dijelova</p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    Za svaki artikal čitamo naziv/opis, količinu i cijenu sa PDV-om. Iznos reda i zbir dijelova računaju se automatski.
+                    Za svaki artikal čitamo naziv/opis, količinu i cijenu sa PDV-om. Iznos reda i
+                    zbir dijelova računaju se automatski.
                   </p>
                 </div>
               </div>
@@ -924,11 +1002,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               <div className="mt-3 grid grid-cols-2 gap-2 sm:gap-3">
                 {estimateImage && (
                   <div className="rounded-lg border border-border bg-background p-2">
-                    <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">Predračun / faktura</p>
+                    <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">
+                      Predračun / faktura
+                    </p>
                     <div className="relative">
-                      <img
+                      <Image
                         src={estimateImage}
                         alt="Fotografija predračuna ili fakture"
+                        width={400}
+                        height={160}
+                        unoptimized
                         className="h-28 w-full rounded object-contain sm:h-32"
                       />
                       <button
@@ -945,11 +1028,16 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
 
                 {registrationImage && (
                   <div className="rounded-lg border border-border bg-background p-2">
-                    <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">Saobraćajna dozvola</p>
+                    <p className="mb-2 text-[11px] font-medium text-foreground sm:text-xs">
+                      Saobraćajna dozvola
+                    </p>
                     <div className="relative">
-                      <img
+                      <Image
                         src={registrationImage}
                         alt="Fotografija saobraćajne dozvole"
+                        width={400}
+                        height={160}
+                        unoptimized
                         className="h-28 w-full rounded object-contain sm:h-32"
                       />
                       <button
@@ -969,7 +1057,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             {(readingEstimate || readingRegistration) && (
               <p className="mt-3 flex items-center gap-2 text-xs text-primary">
                 <Loader2 size={14} className="animate-spin" />
-                {readingRegistration ? 'Prepoznavanje VIN-a sa saobraćajne…' : 'Prepoznavanje predračuna…'} {ocrProgress}%
+                {readingRegistration
+                  ? 'Prepoznavanje VIN-a sa saobraćajne…'
+                  : 'Prepoznavanje predračuna…'}{' '}
+                {ocrProgress}%
               </p>
             )}
             {estimateMessage && !readingEstimate && !readingRegistration && (
@@ -979,7 +1070,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             {estimateParts.length > 0 && (
               <div className="mt-4 overflow-x-auto rounded-lg border border-border bg-background">
                 <div className="flex flex-col gap-2 border-b border-border px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs font-semibold text-foreground">Provjera prepoznatih stavki</p>
+                  <p className="text-xs font-semibold text-foreground">
+                    Provjera prepoznatih stavki
+                  </p>
                   <button
                     type="button"
                     onClick={addEstimateParts}
@@ -990,30 +1083,100 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 </div>
                 <div className="space-y-2 p-2 sm:hidden">
                   {estimateParts.map((part) => (
-                    <div key={`mobile-${part.id}`} className="min-w-0 rounded-lg border border-border bg-card p-2">
+                    <div
+                      key={`mobile-${part.id}`}
+                      className="min-w-0 rounded-lg border border-border bg-card p-2"
+                    >
                       <div className="flex items-start gap-2">
-                        <input value={part.name} onChange={(event) => updateEstimatePart(part.id, 'name', event.target.value)} className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1.5 text-sm" aria-label="Naziv prepoznatog dijela" />
-                        <button type="button" onClick={() => setEstimateParts((current) => current.filter((item) => item.id !== part.id))} aria-label={`Ukloni ${part.name}`} className="shrink-0 rounded p-2 text-muted-foreground hover:text-red-600"><X size={14} /></button>
+                        <input
+                          value={part.name}
+                          onChange={(event) =>
+                            updateEstimatePart(part.id, 'name', event.target.value)
+                          }
+                          className="min-w-0 flex-1 rounded border border-input bg-background px-2 py-1.5 text-sm"
+                          aria-label="Naziv prepoznatog dijela"
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEstimateParts((current) =>
+                              current.filter((item) => item.id !== part.id)
+                            )
+                          }
+                          aria-label={`Ukloni ${part.name}`}
+                          className="shrink-0 rounded p-2 text-muted-foreground hover:text-red-600"
+                        >
+                          <X size={14} />
+                        </button>
                       </div>
                       <div className="mt-2 grid grid-cols-2 gap-2">
-                        <label className="text-[11px] text-muted-foreground">Tip
-                          <select value={part.category || 'part'} onChange={(event) => updateEstimatePart(part.id, 'category', event.target.value)} className="mt-1 w-full rounded border border-input bg-background px-2 py-1.5 text-sm" aria-label="Tip prepoznate stavke">
-                            <option value="part">Dio</option><option value="oil">Ulje</option>
+                        <label className="text-[11px] text-muted-foreground">
+                          Tip
+                          <select
+                            value={part.category || 'part'}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'category', event.target.value)
+                            }
+                            className="mt-1 w-full rounded border border-input bg-background px-2 py-1.5 text-sm"
+                            aria-label="Tip prepoznate stavke"
+                          >
+                            <option value="part">Dio</option>
+                            <option value="oil">Ulje</option>
                           </select>
                         </label>
-                        <label className="text-[11px] text-muted-foreground">Količina
-                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="mt-1 w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Količina prepoznatog dijela" />
+                        <label className="text-[11px] text-muted-foreground">
+                          Količina
+                          <input
+                            type="number"
+                            min={0.01}
+                            step="any"
+                            value={part.qty}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'qty', event.target.value)
+                            }
+                            className="mt-1 w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Količina prepoznatog dijela"
+                          />
                         </label>
-                        <label className="text-[11px] text-muted-foreground">Cijena sa PDV (KM)
-                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="mt-1 w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Cijena prepoznatog dijela sa PDV-om" />
+                        <label className="text-[11px] text-muted-foreground">
+                          Cijena sa PDV (KM)
+                          <input
+                            type="number"
+                            min={0.01}
+                            step="0.01"
+                            value={part.unitCost}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'unitCost', event.target.value)
+                            }
+                            className="mt-1 w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right text-sm [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Cijena prepoznatog dijela sa PDV-om"
+                          />
                         </label>
-                        <div className="text-right text-[11px] text-muted-foreground">Iznos
-                          <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">{(part.qty * part.unitCost).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM</p>
+                        <div className="text-right text-[11px] text-muted-foreground">
+                          Iznos
+                          <p className="mt-1 text-sm font-semibold tabular-nums text-foreground">
+                            {(part.qty * part.unitCost).toLocaleString('bs-BA', {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}{' '}
+                            KM
+                          </p>
                         </div>
                       </div>
                     </div>
                   ))}
-                  <div className="flex justify-between gap-2 px-1 py-2 text-sm font-bold"><span>Ukupno dijelovi</span><span className="shrink-0 tabular-nums">{estimateParts.reduce((total, part) => total + part.qty * part.unitCost, 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM</span></div>
+                  <div className="flex justify-between gap-2 px-1 py-2 text-sm font-bold">
+                    <span>Ukupno dijelovi</span>
+                    <span className="shrink-0 tabular-nums">
+                      {estimateParts
+                        .reduce((total, part) => total + part.qty * part.unitCost, 0)
+                        .toLocaleString('bs-BA', {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}{' '}
+                      KM
+                    </span>
+                  </div>
                 </div>
                 <table className="hidden w-full min-w-[650px] text-xs sm:table">
                   <thead className="bg-muted/40 text-muted-foreground">
@@ -1030,25 +1193,71 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                     {estimateParts.map((part) => (
                       <tr key={part.id}>
                         <td className="p-2">
-                          <input value={part.name} onChange={(event) => updateEstimatePart(part.id, 'name', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5" aria-label="Naziv prepoznatog dijela" />
+                          <input
+                            value={part.name}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'name', event.target.value)
+                            }
+                            className="w-full rounded border border-input bg-background px-2 py-1.5"
+                            aria-label="Naziv prepoznatog dijela"
+                          />
                         </td>
                         <td className="p-2">
-                          <select value={part.category || 'part'} onChange={(event) => updateEstimatePart(part.id, 'category', event.target.value)} className="w-full rounded border border-input bg-background px-2 py-1.5" aria-label="Tip prepoznate stavke">
+                          <select
+                            value={part.category || 'part'}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'category', event.target.value)
+                            }
+                            className="w-full rounded border border-input bg-background px-2 py-1.5"
+                            aria-label="Tip prepoznate stavke"
+                          >
                             <option value="part">Dio</option>
                             <option value="oil">Ulje</option>
                           </select>
                         </td>
                         <td className="p-2">
-                          <input type="number" min={0.01} step="any" value={part.qty} onChange={(event) => updateEstimatePart(part.id, 'qty', event.target.value)} className="w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Količina prepoznatog dijela" />
+                          <input
+                            type="number"
+                            min={0.01}
+                            step="any"
+                            value={part.qty}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'qty', event.target.value)
+                            }
+                            className="w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Količina prepoznatog dijela"
+                          />
                         </td>
                         <td className="p-2">
-                          <input type="number" min={0.01} step="0.01" value={part.unitCost} onChange={(event) => updateEstimatePart(part.id, 'unitCost', event.target.value)} className="w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" aria-label="Cijena prepoznatog dijela sa PDV-om" />
+                          <input
+                            type="number"
+                            min={0.01}
+                            step="0.01"
+                            value={part.unitCost}
+                            onChange={(event) =>
+                              updateEstimatePart(part.id, 'unitCost', event.target.value)
+                            }
+                            className="w-full appearance-none rounded border border-input bg-background px-2 py-1.5 text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                            aria-label="Cijena prepoznatog dijela sa PDV-om"
+                          />
                         </td>
                         <td className="p-2 text-right font-medium tabular-nums">
-                          {(part.qty * part.unitCost).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {(part.qty * part.unitCost).toLocaleString('bs-BA', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </td>
                         <td className="p-2">
-                          <button type="button" onClick={() => setEstimateParts((current) => current.filter((item) => item.id !== part.id))} aria-label={`Ukloni ${part.name}`} className="rounded p-1 text-muted-foreground hover:text-red-600">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEstimateParts((current) =>
+                                current.filter((item) => item.id !== part.id)
+                              )
+                            }
+                            aria-label={`Ukloni ${part.name}`}
+                            className="rounded p-1 text-muted-foreground hover:text-red-600"
+                          >
                             <X size={14} />
                           </button>
                         </td>
@@ -1057,9 +1266,17 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                   </tbody>
                   <tfoot>
                     <tr className="border-t border-border bg-muted/30">
-                      <td colSpan={4} className="px-2 py-2 text-right font-semibold">Ukupno dijelovi</td>
+                      <td colSpan={4} className="px-2 py-2 text-right font-semibold">
+                        Ukupno dijelovi
+                      </td>
                       <td className="px-2 py-2 text-right font-bold tabular-nums">
-                        {estimateParts.reduce((total, part) => total + part.qty * part.unitCost, 0).toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM
+                        {estimateParts
+                          .reduce((total, part) => total + part.qty * part.unitCost, 0)
+                          .toLocaleString('bs-BA', {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{' '}
+                        KM
                       </td>
                       <td />
                     </tr>
@@ -1101,7 +1318,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               const qty = Number(watchedParts[idx]?.qty) || 0;
               const unitCost = Number(watchedParts[idx]?.unitCost) || 0;
               return (
-                <div key={`mobile-${field.id}`} className="rounded-lg border border-border bg-card p-3 space-y-3">
+                <div
+                  key={`mobile-${field.id}`}
+                  className="rounded-lg border border-border bg-card p-3 space-y-3"
+                >
                   <div className="grid grid-cols-2 gap-2">
                     <select
                       {...register(`parts.${idx}.category`)}
@@ -1139,12 +1359,19 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         min={0.01}
                         step="any"
                         value={watchedParts[idx]?.qty ?? 0}
-                        onChange={(event) => setValue(`parts.${idx}.qty`, Number(event.target.value) || 0, { shouldDirty: true, shouldValidate: true })}
+                        onChange={(event) =>
+                          setValue(`parts.${idx}.qty`, Number(event.target.value) || 0, {
+                            shouldDirty: true,
+                            shouldValidate: true,
+                          })
+                        }
                         className="w-full appearance-none px-3 py-2 text-sm bg-background border border-input rounded-md text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </div>
                     <div>
-                      <label className="mb-1 block text-xs text-muted-foreground">Jed. cijena</label>
+                      <label className="mb-1 block text-xs text-muted-foreground">
+                        Jed. cijena
+                      </label>
                       <input
                         type="number"
                         inputMode="decimal"
@@ -1244,9 +1471,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                             key={`${field.id}-image-${imageIndex}`}
                             className="relative inline-block mt-1 mr-1"
                           >
-                            <img
+                            <Image
                               src={image}
                               alt={`Slika dijela ${watchedParts[idx]?.name || idx + 1} ${imageIndex + 1}`}
+                              width={40}
+                              height={40}
+                              unoptimized
                               className="h-10 w-10 rounded object-cover border border-border"
                             />
                             <button
@@ -1279,7 +1509,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           min={0.01}
                           step="any"
                           value={watchedParts[idx]?.qty ?? 0}
-                          onChange={(event) => setValue(`parts.${idx}.qty`, Number(event.target.value) || 0, { shouldDirty: true, shouldValidate: true })}
+                          onChange={(event) =>
+                            setValue(`parts.${idx}.qty`, Number(event.target.value) || 0, {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
                           className="w-full appearance-none px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       </td>
@@ -1395,7 +1630,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             </div>
             <div className="divide-y divide-border">
               {laborFields.map((field, idx) => (
-                <div key={field.id} className="grid grid-cols-[minmax(0,1fr)_104px_36px] items-start gap-2 px-3 py-2">
+                <div
+                  key={field.id}
+                  className="grid grid-cols-[minmax(0,1fr)_104px_36px] items-start gap-2 px-3 py-2"
+                >
                   <div className="min-w-0">
                     <input
                       type="text"
@@ -1510,5 +1748,3 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     </Modal>
   );
 }
-
-

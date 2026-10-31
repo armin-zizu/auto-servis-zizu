@@ -54,11 +54,7 @@ interface SidebarProps {
   userEmail?: string;
 }
 
-export default function Sidebar({
-  userRole = 'owner',
-  userName = 'Armin Mujić',
-  userEmail = 'armin@autoservis.com',
-}: SidebarProps) {
+export default function Sidebar({ userRole = 'owner', userName = 'Armin Mujić' }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 

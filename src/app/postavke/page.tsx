@@ -64,7 +64,7 @@ export default function SettingsPage() {
     }
   }, []);
 
-const saveAccounts = (next: Account[]) => {
+  const saveAccounts = (next: Account[]) => {
     setAccounts(next);
     writeCache(accountKey, next);
     void push(accountKey, next);
@@ -153,7 +153,7 @@ const saveAccounts = (next: Account[]) => {
     setNewPassword('');
     setMessage('Lozinka je promijenjena.');
   };
-const updateNotices = (payout: boolean, order: boolean) => {
+  const updateNotices = (payout: boolean, order: boolean) => {
     setPayoutNotices(payout);
     setOrderNotices(order);
     const value = { payout, order };
@@ -217,7 +217,7 @@ const updateNotices = (payout: boolean, order: boolean) => {
                   />
                 ))}
               </div>
-<button
+              <button
                 type="button"
                 onClick={() => {
                   writeCache(workshopKey, workshop);
@@ -406,7 +406,7 @@ const updateNotices = (payout: boolean, order: boolean) => {
                   />
                   <button
                     type="button"
-onClick={() => {
+                    onClick={() => {
                       if (ownerPassword.length >= 6) {
                         writeCache(OWNER_PASSWORD_KEY, ownerPassword);
                         void push(OWNER_PASSWORD_KEY, ownerPassword);

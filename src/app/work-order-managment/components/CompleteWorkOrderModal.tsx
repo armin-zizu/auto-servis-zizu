@@ -37,10 +37,18 @@ export default function CompleteWorkOrderModal({
       size="md"
       footer={
         <div className="flex items-center justify-end gap-3">
-          <button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary hover:bg-muted rounded-lg">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-secondary-foreground bg-secondary hover:bg-muted rounded-lg"
+          >
             Otkaži
           </button>
-          <button type="button" onClick={handleConfirm} className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90">
+          <button
+            type="button"
+            onClick={handleConfirm}
+            className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+          >
             Završi nalog
           </button>
         </div>
@@ -50,7 +58,8 @@ export default function CompleteWorkOrderModal({
         <div className="flex gap-3 p-3 bg-primary/5 border border-primary/15 rounded-lg">
           <Calculator size={17} className="text-primary shrink-0 mt-0.5" />
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Unesite svoj procenat rabata za dijelove i ulje. Taj procenat ulazi u prihod, a preostali procenat se računa kao trošak. Prazno polje znači 0% rabata.
+            Unesite svoj procenat rabata za dijelove i ulje. Taj procenat ulazi u prihod, a
+            preostali procenat se računa kao trošak. Prazno polje znači 0% rabata.
           </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -61,9 +61,10 @@ export function orderInPeriod(order: WorkOrder, period: PeriodFilter): boolean {
 export function orderPartsCost(order: WorkOrder): number {
   if (order.partsPurchaseCost !== undefined) return Number(order.partsPurchaseCost) || 0;
   return order.parts.reduce((total, part) => {
-    const rebatePct = part.category === 'oil'
-      ? Number(order.supplierOilDiscountPct) || 0
-      : Number(order.supplierPartsDiscountPct) || 0;
+    const rebatePct =
+      part.category === 'oil'
+        ? Number(order.supplierOilDiscountPct) || 0
+        : Number(order.supplierPartsDiscountPct) || 0;
     return total + part.qty * part.unitCost * (1 - rebatePct / 100);
   }, 0);
 }

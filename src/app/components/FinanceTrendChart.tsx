@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   CartesianGrid,
   Legend,
@@ -99,7 +99,7 @@ function orderDateInPeriod(date: string, period: PeriodFilter): boolean {
 
 /** Daily line chart of income, parts cost, manually entered payouts and result. */
 export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
-  const [version, setVersion] = useState(0);
+  const [, setVersion] = useState(0);
 
   useEffect(() => {
     const refresh = () => setVersion((value) => value + 1);
@@ -111,7 +111,7 @@ export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
     };
   }, []);
 
-  const data = useMemo(() => {
+  const data = (() => {
     const orders = readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []);
     const payouts = readCache<PayoutRecord[]>('autoservis-payouts', []);
     const days = buildDays(period);
@@ -153,7 +153,7 @@ export default function FinanceTrendChart({ period }: FinanceTrendChartProps) {
         label: new Intl.DateTimeFormat('bs-BA', { day: 'numeric', month: 'short' }).format(date),
       };
     });
-  }, [period, version]);
+  })();
 
   if (data.length === 0) {
     return (

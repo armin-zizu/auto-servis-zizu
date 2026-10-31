@@ -2,20 +2,9 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import {
-  CheckCircle2,
-  ClipboardList,
-  DollarSign,
-  Package,
-  TrendingUp,
-  Users,
-} from 'lucide-react';
+import { CheckCircle2, ClipboardList, DollarSign, Package, TrendingUp, Users } from 'lucide-react';
 import FinancePeriodPicker from '@/app/components/FinancePeriodPicker';
-import {
-  PeriodFilter,
-  orderInPeriod,
-  useFinanceSummary,
-} from '@/lib/financeData';
+import { PeriodFilter, orderInPeriod, useFinanceSummary } from '@/lib/financeData';
 import { ORDERS_STORAGE_KEY, WorkOrder } from '@/app/work-order-managment/data/mockWorkOrders';
 import { readCache, SYNC_EVENT } from '@/lib/syncStore';
 
@@ -53,15 +42,33 @@ function MetricCard({ metric }: { metric: MetricCardData }) {
       className={`rounded-xl border shadow-card p-5 flex flex-col gap-4 h-full min-h-40 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover focus:outline-none focus:ring-2 focus:ring-ring ${metric.style} ${metric.highlighted ? 'text-primary-foreground' : ''}`}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${metric.iconStyle} ${metric.highlighted ? 'bg-white/20 text-white' : ''}`}>
+        <div
+          className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${metric.iconStyle} ${metric.highlighted ? 'bg-white/20 text-white' : ''}`}
+        >
           {metric.icon}
         </div>
-        <span className={`text-xs ${metric.highlighted ? 'text-white/70' : 'text-muted-foreground'}`}>Otvori naloge →</span>
+        <span
+          className={`text-xs ${metric.highlighted ? 'text-white/70' : 'text-muted-foreground'}`}
+        >
+          Otvori naloge →
+        </span>
       </div>
       <div>
-        <p className={`text-xs font-medium uppercase tracking-wide mb-1 ${metric.highlighted ? 'text-white/75' : 'text-muted-foreground'}`}>{metric.label}</p>
-        <p className={`text-3xl font-bold tabular-nums leading-none ${metric.highlighted ? 'text-white' : 'text-foreground'}`}>{metric.value}</p>
-        <p className={`text-xs mt-1.5 ${metric.highlighted ? 'text-white/75' : 'text-muted-foreground'}`}>{metric.subValue}</p>
+        <p
+          className={`text-xs font-medium uppercase tracking-wide mb-1 ${metric.highlighted ? 'text-white/75' : 'text-muted-foreground'}`}
+        >
+          {metric.label}
+        </p>
+        <p
+          className={`text-3xl font-bold tabular-nums leading-none ${metric.highlighted ? 'text-white' : 'text-foreground'}`}
+        >
+          {metric.value}
+        </p>
+        <p
+          className={`text-xs mt-1.5 ${metric.highlighted ? 'text-white/75' : 'text-muted-foreground'}`}
+        >
+          {metric.subValue}
+        </p>
       </div>
     </Link>
   );
@@ -87,7 +94,9 @@ export default function MetricsBentoGrid() {
   }, []);
 
   const { activeCount, closedCount } = useMemo(() => {
-    const active = orders.filter((order) => order.status !== 'Zatvoren' && order.status !== 'Otkazan');
+    const active = orders.filter(
+      (order) => order.status !== 'Zatvoren' && order.status !== 'Otkazan'
+    );
     const closed = orders.filter(
       (order) => order.status === 'Zatvoren' && orderInPeriod(order, period)
     );
@@ -166,7 +175,9 @@ export default function MetricsBentoGrid() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Pregled poslovanja</h2>
-          <p className="text-xs text-muted-foreground">Finansije i zatvoreni nalozi za isti period</p>
+          <p className="text-xs text-muted-foreground">
+            Finansije i zatvoreni nalozi za isti period
+          </p>
         </div>
       </div>
       <FinancePeriodPicker period={period} onChange={setPeriod} />

@@ -79,11 +79,7 @@ export const SUPPLIERS_STORAGE_KEY = 'autoservis-suppliers';
 export const DEFAULT_SUPPLIERS = ['Motorex'];
 export const DEFAULT_SUPPLIER = 'Motorex';
 
-function calcOrder(
-  parts: PartLineItem[],
-  laborEntries: LaborEntry[],
-  discountPct: number
-) {
+function calcOrder(parts: PartLineItem[], laborEntries: LaborEntry[], discountPct: number) {
   const rawParts = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
   const partsTotal = rawParts * (1 - discountPct / 100);
   const laborTotal = laborEntries.reduce((s, l) => s + l.hours * l.rate, 0);

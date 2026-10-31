@@ -107,10 +107,9 @@ export async function push<T>(key: string, value: T): Promise<boolean> {
   const supabase = getSupabase();
   if (!supabase || !appDataAvailable) return false;
   try {
-    const { error } = await supabase.from(tableName).upsert(
-      { key, value, updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
+    const { error } = await supabase
+      .from(tableName)
+      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
     if (error) throw error;
     return true;
   } catch (error) {
@@ -160,7 +159,9 @@ export function subscribe<T>(key: string, listener: Subscriber): () => void {
   // important: Realtime channels cannot have postgres callbacks added once
   // they have already been subscribed.
   if (supabase && appDataAvailable && !channels.has(key)) {
-    const channel = supabase.channel(`app_data_${key}`).on(
+    const channel = supabase
+      .channel(`app_data_${key}`)
+      .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: tableName, filter: `key=eq.${key}` },
         () => {
@@ -183,11 +184,7 @@ export function subscribe<T>(key: string, listener: Subscriber): () => void {
 }
 
 /** Easy hook-style helper: read + pull + subscribe in one call. */
-export function attachSync<T>(
-  key: string,
-  fallback: T,
-  onValue: (value: T) => void
-): () => void {
+export function attachSync<T>(key: string, fallback: T, onValue: (value: T) => void): () => void {
   // Initial local value
   const cached = readCache<T>(key, fallback);
   onValue(cached);

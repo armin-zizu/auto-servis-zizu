@@ -120,7 +120,8 @@ export default function ClientsPage() {
                   <div className="min-w-0 max-w-[45%] text-right shrink-0">
                     {client.vehicle && (
                       <p className="truncate text-sm text-foreground flex items-center gap-1 justify-end">
-                        <Car size={13} className="text-muted-foreground shrink-0" /> <span className="truncate">{client.vehicle}</span>
+                        <Car size={13} className="text-muted-foreground shrink-0" />{' '}
+                        <span className="truncate">{client.vehicle}</span>
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground mt-1">

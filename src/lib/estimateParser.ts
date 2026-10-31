@@ -1,15 +1,16 @@
 import { PartLineItem } from '@/app/work-order-managment/data/mockWorkOrders';
 
-const IGNORED_LINE = /^(?:subtotal|sub\s*-?total|total|ukupno|za uplatu|pdv|vat|porez|popust|discount|predra[cč]un|ra[cč]un|invoice|datum|date|strana|page|opis|artik(a|l)|naziv|koli[cč]ina|kol\.?|cijena|cena|iznos|jed\.?\s*cijena)\b/i;
-const MONEY_TOKEN = /(?<![\w])(?:\d{1,3}(?:[ .]\d{3})+|\d+)(?:[,.]\d{1,2})?(?:\s?(?:KM|BAM|EUR|\u20ac|USD|\$))?(?!\w)/gi;
+const IGNORED_LINE =
+  /^(?:subtotal|sub\s*-?total|total|ukupno|za uplatu|pdv|vat|porez|popust|discount|predra[cč]un|ra[cč]un|invoice|datum|date|strana|page|opis|artik(a|l)|naziv|koli[cč]ina|kol\.?|cijena|cena|iznos|jed\.?\s*cijena)\b/i;
+const MONEY_TOKEN =
+  /(?<![\w])(?:\d{1,3}(?:[ .]\d{3})+|\d+)(?:[,.]\d{1,2})?(?:\s?(?:KM|BAM|EUR|\u20ac|USD|\$))?(?!\w)/gi;
 const NUMBER_TOKEN = /\d+(?:[,.]\d+)?/g;
 
-const KNOWN_MANUFACTURERS = /\b(?:CHAMPION|JP\s+GROUP|MARELLI|AIC|MEAT\s*&\s*DORIA|FERODO|BOSCH|MANN(?:[-\s]?FILTER)?|VALEO|HELLA)\b/gi;
+const KNOWN_MANUFACTURERS =
+  /\b(?:CHAMPION|JP\s+GROUP|MARELLI|AIC|MEAT\s*&\s*DORIA|FERODO|BOSCH|MANN(?:[-\s]?FILTER)?|VALEO|HELLA)\b/gi;
 
 function parseMoney(value: string): number {
-  const normalized = value
-    .replace(/\s?(?:KM|BAM|EUR|USD|\u20ac|\$)/gi, '')
-    .replace(/\s/g, '');
+  const normalized = value.replace(/\s?(?:KM|BAM|EUR|USD|\u20ac|\$)/gi, '').replace(/\s/g, '');
   const commaIndex = normalized.lastIndexOf(',');
   const dotIndex = normalized.lastIndexOf('.');
 
@@ -25,9 +26,7 @@ function parseMoney(value: string): number {
   if (commaIndex >= 0) {
     const decimals = normalized.length - commaIndex - 1;
     return Number(
-      decimals > 0 && decimals <= 2
-        ? normalized.replace(',', '.')
-        : normalized.replace(/,/g, '')
+      decimals > 0 && decimals <= 2 ? normalized.replace(',', '.') : normalized.replace(/,/g, '')
     );
   }
   if (dotIndex >= 0) {
@@ -80,7 +79,9 @@ function findQuantity(
       if (
         (/[a-zA-ZÀ-ž]/.test(beforeCandidate) || hasPriorDescription) &&
         /(?:^|\s)$/.test(beforeCandidate) &&
-        Number.isFinite(qty) && qty > 0 && qty <= 10000
+        Number.isFinite(qty) &&
+        qty > 0 &&
+        qty <= 10000
       ) {
         return { qty, index: candidate.index };
       }
@@ -91,8 +92,8 @@ function findQuantity(
 }
 
 function categoryForName(name: string): 'part' | 'oil' {
-  return /(motorno\s+ulje|\bulje\b|engine\s+oil|motor\s+oil|\b\d+w[- ]?\d{2}\b)/i.test(name)
-    && !/filter/i.test(name)
+  return /(motorno\s+ulje|\bulje\b|engine\s+oil|motor\s+oil|\b\d+w[- ]?\d{2}\b)/i.test(name) &&
+    !/filter/i.test(name)
     ? 'oil'
     : 'part';
 }
@@ -112,7 +113,10 @@ function parseBosnianColumnEstimate(text: string): PartLineItem[] {
     if (!rowMatch) return;
 
     const rowContent = rowMatch[2];
-    const unitMatch = /\b(K[O0О]M|S[E3]T|L|PCS?|KOMAD(?:A)?|JED\.?)\.?\s+([0-9Il|]{1,3}(?:[,.][0-9Il|]+)?)/i.exec(rowContent);
+    const unitMatch =
+      /\b(K[O0О]M|S[E3]T|L|PCS?|KOMAD(?:A)?|JED\.?)\.?\s+([0-9Il|]{1,3}(?:[,.][0-9Il|]+)?)/i.exec(
+        rowContent
+      );
     if (!unitMatch || unitMatch.index === undefined) return;
 
     const prefix = rowContent
@@ -127,8 +131,9 @@ function parseBosnianColumnEstimate(text: string): PartLineItem[] {
 
     // Read only decimal amounts on the row. The VAT percentage ends in "%"
     // and is therefore naturally excluded; the last decimal is Iznos sa PDV.
-    const prices = [...line.matchAll(/(?<![\w])\d{1,4}[,.][0-9Il|]{2}(?!\d)/g)]
-      .map((match) => match[0].replace(/[Il|]/g, '1'));
+    const prices = [...line.matchAll(/(?<![\w])\d{1,4}[,.][0-9Il|]{2}(?!\d)/g)].map((match) =>
+      match[0].replace(/[Il|]/g, '1')
+    );
     if (!name || name.length < 2 || !Number.isFinite(qty) || qty <= 0 || !prices.length) return;
 
     const inclusiveRowTotal = parseMoney(prices[prices.length - 1]);
@@ -164,7 +169,11 @@ export function parseEstimateText(text: string): PartLineItem[] {
 
     if (IGNORED_LINE.test(line)) {
       // Header/summary rows must not leak into the next item's description.
-      if (/^(?:subtotal|sub\s*-?total|total|ukupno|za uplatu|pdv|vat|porez|popust|discount)\b/i.test(line)) {
+      if (
+        /^(?:subtotal|sub\s*-?total|total|ukupno|za uplatu|pdv|vat|porez|popust|discount)\b/i.test(
+          line
+        )
+      ) {
         pendingDescription = [];
       }
       return;
@@ -205,27 +214,27 @@ export function parseEstimateText(text: string): PartLineItem[] {
       const candidateQty = parseMoney(firstAmount[0]);
       if (
         (/[a-zA-ZÀ-ž]/.test(prefix) || pendingDescription.length > 0) &&
-        Number.isFinite(candidateQty) && candidateQty > 0 && candidateQty <= 10000
+        Number.isFinite(candidateQty) &&
+        candidateQty > 0 &&
+        candidateQty <= 10000
       ) {
         quantity = { qty: candidateQty, index: firstIndex };
       }
     }
 
     if (quantity.index !== undefined) {
-      const quantityEnd = quantity.index + (line.slice(quantity.index).match(/^\d+(?:[,.]\d+)?/)?.[0].length ?? 0);
+      const quantityEnd =
+        quantity.index + (line.slice(quantity.index).match(/^\d+(?:[,.]\d+)?/)?.[0].length ?? 0);
       priceAmounts = amounts.filter((amount) => {
         const amountIndex = amount.index ?? 0;
         return amountIndex < quantity.index! || amountIndex >= quantityEnd;
       });
     }
 
-    const priceMatch = priceAmounts.length > 1
-      ? priceAmounts[priceAmounts.length - 2]
-      : priceAmounts[0];
+    const priceMatch =
+      priceAmounts.length > 1 ? priceAmounts[priceAmounts.length - 2] : priceAmounts[0];
     const unitCost = parseMoney(priceMatch[0]);
-    const inlineDescription = cleanDescription(
-      line.slice(0, quantity.index ?? firstPriceIndex)
-    );
+    const inlineDescription = cleanDescription(line.slice(0, quantity.index ?? firstPriceIndex));
     const name = [...pendingDescription, inlineDescription]
       .filter(Boolean)
       .join(' ')

@@ -27,7 +27,10 @@ function CustomTooltip({
   return (
     <div className="bg-card border border-border rounded-lg shadow-card p-3 text-sm">
       <div className="flex items-center gap-2">
-        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.payload.color }} />
+        <span
+          className="w-2.5 h-2.5 rounded-full"
+          style={{ backgroundColor: item.payload.color }}
+        />
         <span className="font-medium text-foreground">{item.name}</span>
       </div>
       <p className="text-muted-foreground mt-1">
@@ -65,8 +68,18 @@ export default function OrderStatusPieChart() {
       <div className="relative flex-1 min-h-[180px]">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
-            <Pie data={statusData} cx="50%" cy="50%" innerRadius="55%" outerRadius="80%" paddingAngle={2} dataKey="value">
-              {statusData.map((entry) => <Cell key={entry.name} fill={entry.color} />)}
+            <Pie
+              data={statusData}
+              cx="50%"
+              cy="50%"
+              innerRadius="55%"
+              outerRadius="80%"
+              paddingAngle={2}
+              dataKey="value"
+            >
+              {statusData.map((entry) => (
+                <Cell key={entry.name} fill={entry.color} />
+              ))}
             </Pie>
             <Tooltip content={<CustomTooltip total={total} />} />
           </PieChart>
@@ -81,7 +94,10 @@ export default function OrderStatusPieChart() {
         {statusData.map((item) => (
           <div key={item.name} className="flex items-center justify-between text-xs">
             <span className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: item.color }} />
+              <span
+                className="w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: item.color }}
+              />
               {item.name}
             </span>
             <span className="font-medium text-foreground tabular-nums">{item.value}</span>

@@ -99,7 +99,6 @@ export default function WorkOrdersClient() {
   const [completingOrder, setCompletingOrder] = useState<WorkOrder | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
   const [period, setPeriod] = useState<PeriodFilter>({
     mode: 'month',
@@ -168,7 +167,10 @@ export default function WorkOrdersClient() {
     if (from || to) {
       setPeriod({ mode: 'range', from, to });
     } else {
-      setPeriod({ mode: 'month', month: searchParams.get('month') || new Date().toISOString().slice(0, 7) });
+      setPeriod({
+        mode: 'month',
+        month: searchParams.get('month') || new Date().toISOString().slice(0, 7),
+      });
     }
     setFinanceFilter(searchParams.get('finance') || '');
   }, [searchParams]);
@@ -197,14 +199,14 @@ export default function WorkOrdersClient() {
     return ['Svi', ...unique.values()];
   }, [orders, registeredSuppliers]);
 
-  const dateFrom = period.mode === 'range'
-    ? period.from || ''
-    : period.month ? `${period.month}-01` : '';
-  const dateTo = period.mode === 'range'
-    ? period.to || ''
-    : period.month
-      ? `${period.month}-${String(new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)), 0).getDate()).padStart(2, '0')}`
-      : '';
+  const dateFrom =
+    period.mode === 'range' ? period.from || '' : period.month ? `${period.month}-01` : '';
+  const dateTo =
+    period.mode === 'range'
+      ? period.to || ''
+      : period.month
+        ? `${period.month}-${String(new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)), 0).getDate()).padStart(2, '0')}`
+        : '';
 
   const filtered = useMemo(() => {
     let result = orders;
@@ -241,9 +243,13 @@ export default function WorkOrdersClient() {
     }
     if (supplierFilter !== 'Svi') {
       const selectedSupplier = supplierFilter.toLocaleLowerCase();
-      result = result.filter((order) =>
-        order.supplier?.trim().toLocaleLowerCase() === selectedSupplier ||
-        order.parts.some((part) => (part.supplier?.trim() || DEFAULT_SUPPLIER).toLocaleLowerCase() === selectedSupplier)
+      result = result.filter(
+        (order) =>
+          order.supplier?.trim().toLocaleLowerCase() === selectedSupplier ||
+          order.parts.some(
+            (part) =>
+              (part.supplier?.trim() || DEFAULT_SUPPLIER).toLocaleLowerCase() === selectedSupplier
+          )
       );
     }
     if (sortKey) {
@@ -265,7 +271,19 @@ export default function WorkOrdersClient() {
       });
     }
     return result;
-  }, [orders, search, statusFilter, activeOnly, dateFrom, dateTo, financeFilter, mechanicFilter, supplierFilter, sortKey, sortDir]);
+  }, [
+    orders,
+    search,
+    statusFilter,
+    activeOnly,
+    dateFrom,
+    dateTo,
+    financeFilter,
+    mechanicFilter,
+    supplierFilter,
+    sortKey,
+    sortDir,
+  ]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -363,7 +381,7 @@ export default function WorkOrdersClient() {
   const handleRemoveOrderImage = (image: 'estimateImage' | 'registrationImage') => {
     if (!viewOrder) return;
     const updatedOrder = { ...viewOrder, [image]: undefined };
-    const next = orders.map((item) => item.id === viewOrder.id ? updatedOrder : item);
+    const next = orders.map((item) => (item.id === viewOrder.id ? updatedOrder : item));
     setOrders(next);
     setViewOrder(updatedOrder);
     persistOrders(next);
@@ -428,7 +446,13 @@ export default function WorkOrdersClient() {
 
       {/* Period i traka filtera */}
       <div className="mb-3">
-        <FinancePeriodPicker period={period} onChange={(next) => { setPeriod(next); setPage(1); }} />
+        <FinancePeriodPicker
+          period={period}
+          onChange={(next) => {
+            setPeriod(next);
+            setPage(1);
+          }}
+        />
       </div>
       <div className="bg-card border border-border rounded-xl shadow-card mb-4">
         <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-4">

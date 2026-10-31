@@ -20,9 +20,7 @@ export default function AuthPage() {
         {/* Logo */}
         <div className="relative flex items-center gap-3">
           <AppLogo size={40} />
-          <span className="text-white text-xl font-semibold tracking-tight">
-            AutoServis
-          </span>
+          <span className="text-white text-xl font-semibold tracking-tight">AutoServis</span>
         </div>
 
         {/* Hero copy */}
@@ -38,10 +36,22 @@ export default function AuthPage() {
 
           <div className="space-y-3">
             {[
-              { icon: <ClipboardList size={16} />, text: 'Kreirajte i upravljajte radnim nalozima od početka do kraja' },
-              { icon: <Wrench size={16} />, text: 'Automatski izračun isplata majstorima iz prihoda od rada' },
-              { icon: <BarChart3 size={16} />, text: 'Kontrolna tabla uživo — prihodi, troškovi, marže' },
-              { icon: <ShieldCheck size={16} />, text: 'Pristup prema ulozi za vlasnike i majstore' },
+              {
+                icon: <ClipboardList size={16} />,
+                text: 'Kreirajte i upravljajte radnim nalozima od početka do kraja',
+              },
+              {
+                icon: <Wrench size={16} />,
+                text: 'Automatski izračun isplata majstorima iz prihoda od rada',
+              },
+              {
+                icon: <BarChart3 size={16} />,
+                text: 'Kontrolna tabla uživo — prihodi, troškovi, marže',
+              },
+              {
+                icon: <ShieldCheck size={16} />,
+                text: 'Pristup prema ulozi za vlasnike i majstore',
+              },
             ]?.map((item, i) => (
               <div key={`feature-${i}`} className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-lg bg-white/15 flex items-center justify-center shrink-0 text-white">

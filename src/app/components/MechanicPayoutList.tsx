@@ -27,7 +27,9 @@ export default function MechanicPayoutList() {
   useEffect(() => {
     const refresh = () => {
       setSession(readSession());
-      setPayouts(readCache<PayoutRecord[]>(PAYOUTS_STORAGE_KEY, []).filter((payout) => Boolean(payout.date)));
+      setPayouts(
+        readCache<PayoutRecord[]>(PAYOUTS_STORAGE_KEY, []).filter((payout) => Boolean(payout.date))
+      );
     };
     refresh();
     void pull<PayoutRecord[]>(PAYOUTS_STORAGE_KEY).then(refresh);
@@ -42,13 +44,17 @@ export default function MechanicPayoutList() {
   }, []);
 
   const visiblePayouts = useMemo(() => {
-    const rows = session?.userRole === 'mechanic'
-      ? payouts.filter((payout) => payout.name === session.userName)
-      : payouts;
+    const rows =
+      session?.userRole === 'mechanic'
+        ? payouts.filter((payout) => payout.name === session.userName)
+        : payouts;
     return rows.slice(0, 5);
   }, [payouts, session]);
   const unpaid = payouts
-    .filter((payout) => !payout.paid && (session?.userRole !== 'mechanic' || payout.name === session.userName))
+    .filter(
+      (payout) =>
+        !payout.paid && (session?.userRole !== 'mechanic' || payout.name === session.userName)
+    )
     .reduce((total, payout) => total + (Number(payout.amount) || 0), 0);
 
   return (
@@ -60,32 +66,61 @@ export default function MechanicPayoutList() {
         </div>
         <div className="text-right">
           <p className="text-xs text-muted-foreground">Neisplaćeno</p>
-          <p className="text-lg font-bold text-amber-600 tabular-nums">{unpaid.toLocaleString('bs-BA')} KM</p>
+          <p className="text-lg font-bold text-amber-600 tabular-nums">
+            {unpaid.toLocaleString('bs-BA')} KM
+          </p>
         </div>
       </div>
       <div className="flex-1 divide-y divide-border overflow-y-auto scrollbar-thin">
         {visiblePayouts.map((payout) => (
-          <div key={payout.id} className="px-4 py-3.5 flex items-center justify-between gap-3 sm:px-5">
+          <div
+            key={payout.id}
+            className="px-4 py-3.5 flex items-center justify-between gap-3 sm:px-5"
+          >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <span className="text-xs font-semibold text-primary">{payout.name.split(' ').map((part) => part[0]).join('')}</span>
+                <span className="text-xs font-semibold text-primary">
+                  {payout.name
+                    .split(' ')
+                    .map((part) => part[0])
+                    .join('')}
+                </span>
               </div>
               <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground truncate">{payout.name}</p>
-                <p className="text-xs text-muted-foreground truncate">{payout.date || 'Datum nije naveden'}{payout.note ? ` · ${payout.note}` : ''}</p>
+                <p className="text-xs text-muted-foreground truncate">
+                  {payout.date || 'Datum nije naveden'}
+                  {payout.note ? ` · ${payout.note}` : ''}
+                </p>
               </div>
             </div>
             <div className="text-right shrink-0">
-              <p className={`text-sm font-bold tabular-nums ${payout.paid ? 'text-muted-foreground line-through' : 'text-foreground'}`}>{Number(payout.amount || 0).toLocaleString('bs-BA')} KM</p>
-              <span className={`text-xs font-medium ${payout.paid ? 'text-emerald-600' : 'text-amber-600'}`}>{payout.paid ? 'Isplaćeno' : 'Neisplaćeno'}</span>
+              <p
+                className={`text-sm font-bold tabular-nums ${payout.paid ? 'text-muted-foreground line-through' : 'text-foreground'}`}
+              >
+                {Number(payout.amount || 0).toLocaleString('bs-BA')} KM
+              </p>
+              <span
+                className={`text-xs font-medium ${payout.paid ? 'text-emerald-600' : 'text-amber-600'}`}
+              >
+                {payout.paid ? 'Isplaćeno' : 'Neisplaćeno'}
+              </span>
             </div>
           </div>
         ))}
-        {!visiblePayouts.length && <p className="px-5 py-8 text-center text-sm text-muted-foreground">Još nema ručno unesenih isplata.</p>}
+        {!visiblePayouts.length && (
+          <p className="px-5 py-8 text-center text-sm text-muted-foreground">
+            Još nema ručno unesenih isplata.
+          </p>
+        )}
       </div>
       <div className="px-4 py-3.5 border-t border-border rounded-b-xl bg-muted/20 flex flex-wrap items-center justify-between gap-2 text-xs sm:px-5">
-        <span className="text-muted-foreground flex items-center gap-1.5"><DollarSign size={13} /> Evidentiranje je ručno</span>
-        <Link href="/finansije#isplate" className="text-primary font-semibold hover:underline">Otvori Finansije</Link>
+        <span className="text-muted-foreground flex items-center gap-1.5">
+          <DollarSign size={13} /> Evidentiranje je ručno
+        </span>
+        <Link href="/finansije#isplate" className="text-primary font-semibold hover:underline">
+          Otvori Finansije
+        </Link>
       </div>
     </div>
   );

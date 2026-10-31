@@ -1,12 +1,14 @@
 import React from 'react';
 
 export type OrderStatus =
-  | 'Otvoren' | 'U toku' | 'Čeka dijelove' | 'Spreman za preuzimanje' | 'Zatvoren' | 'Otkazan';
+  | 'Otvoren'
+  | 'U toku'
+  | 'Čeka dijelove'
+  | 'Spreman za preuzimanje'
+  | 'Zatvoren'
+  | 'Otkazan';
 
-const statusConfig: Record<
-  OrderStatus,
-  { bg: string; text: string; dot: string }
-> = {
+const statusConfig: Record<OrderStatus, { bg: string; text: string; dot: string }> = {
   Otvoren: {
     bg: 'bg-blue-50',
     text: 'text-blue-700',

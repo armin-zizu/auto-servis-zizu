@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,  } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { orderDate, useDashboardOrders } from '@/lib/useDashboardOrders';
 import { orderPartsCost, orderPartsRebate } from '@/lib/financeData';
 
@@ -19,10 +19,7 @@ const CustomTooltip = ({
       <div className="bg-card border border-border rounded-lg shadow-card-hover p-3 text-sm min-w-[160px]">
         <p className="font-semibold text-foreground mb-2">{label}</p>
         {payload.map((entry) => (
-          <div
-            key={`tooltip-${entry.name}`}
-            className="flex items-center justify-between gap-4"
-          >
+          <div key={`tooltip-${entry.name}`} className="flex items-center justify-between gap-4">
             <span className="flex items-center gap-1.5 text-muted-foreground">
               <span
                 className="w-2 h-2 rounded-sm inline-block"
@@ -72,9 +69,7 @@ export default function RevenueBarChart() {
     <div className="bg-card border border-border rounded-xl shadow-card p-5">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h3 className="text-base font-semibold text-foreground">
-            Prihod i trošak dijelova
-          </h3>
+          <h3 className="text-base font-semibold text-foreground">Prihod i trošak dijelova</h3>
           <p className="text-xs text-muted-foreground mt-0.5">
             Posljednjih 14 dana · zatvoreni nalozi
           </p>
@@ -97,11 +92,7 @@ export default function RevenueBarChart() {
           barGap={2}
           barCategoryGap="30%"
         >
-          <CartesianGrid
-            strokeDasharray="3 3"
-            stroke="var(--border)"
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
           <XAxis
             dataKey="day"
             tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
@@ -116,7 +107,12 @@ export default function RevenueBarChart() {
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'var(--muted)', opacity: 0.5 }} />
           <Bar dataKey="revenue" name="Prihod" fill="var(--primary)" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="partsCost" name="Trošak dijelova" fill="var(--accent)" radius={[3, 3, 0, 0]} />
+          <Bar
+            dataKey="partsCost"
+            name="Trošak dijelova"
+            fill="var(--accent)"
+            radius={[3, 3, 0, 0]}
+          />
         </BarChart>
       </ResponsiveContainer>
     </div>
