@@ -85,13 +85,35 @@ function findVinInOcrText(text: string): string | null {
   const lines = text.toUpperCase().split(/\r?\n/);
   const candidates: string[] = [];
   for (const line of lines) {
-    const compact = line.replace(/[|]/g, '1').replace(/[^A-Z0-9]/g, '');
+    const compact = line
+      .replace(/[|IL]/g, '1')
+      .replace(/[OQ]/g, '0')
+      .replace(/[^A-Z0-9]/g, '');
     for (let index = 0; index <= compact.length - 17; index += 1) {
       const candidate = compact.slice(index, index + 17);
       if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.push(candidate);
     }
   }
   return candidates.find((candidate) => candidate.startsWith('WVW')) ?? candidates[0] ?? null;
+}
+
+function findVinLabelLines(page: Tesseract.Page) {
+  return (page.blocks ?? []).flatMap((block) =>
+    block.paragraphs.flatMap((paragraph) => paragraph.lines)
+  ).filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line.text));
+}
+
+function cropRegistrationVinRow(image: HTMLCanvasElement, y0: number, y1: number) {
+  const rowHeight = Math.max(24, y1 - y0);
+  const top = Math.max(0, Math.floor(y0 - rowHeight * 0.8));
+  const bottom = Math.min(image.height, Math.ceil(y1 + rowHeight * 0.8));
+  const crop = document.createElement('canvas');
+  crop.width = image.width;
+  crop.height = Math.max(1, bottom - top);
+  const context = crop.getContext('2d');
+  if (!context) throw new Error('Canvas nije dostupan za izdvajanje VIN reda');
+  context.drawImage(image, 0, top, image.width, crop.height, 0, 0, crop.width, crop.height);
+  return crop;
 }
 
 const STATUSES: OrderStatus[] = [
@@ -242,6 +264,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     remove: removeLabor,
   } = useFieldArray({ control, name: 'laborEntries' });
 
+  const partQuantityInputs = partFields.map((field, idx) => (
+    <input
+      key={`part-quantity-field-${field.id}`}
+      type="hidden"
+      {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 0.01 })}
+    />
+  ));
+
   useEffect(() => {
     if (open) {
       setSession(readSession());
@@ -386,8 +416,27 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
 
       let vin: string | null = null;
       for (let index = 0; index < ocrImages.length && !vin; index += 1) {
+        await worker.setParameters({
+          tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+          tessedit_char_whitelist: '',
+        });
         const result = await worker.recognize(ocrImages[index]);
-        vin = findVinInOcrText(result.data.text);
+        const vinLines = findVinLabelLines(result.data);
+        vin = vinLines
+          .map((line) => findVinInOcrText(line.text))
+          .find((candidate): candidate is string => Boolean(candidate)) ?? null;
+        if (!vin && vinLines.length) {
+          await worker.setParameters({
+            tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+          });
+          for (const line of vinLines) {
+            const row = cropRegistrationVinRow(ocrImages[index], line.bbox.y0, line.bbox.y1);
+            const rowResult = await worker.recognize(row);
+            vin = findVinInOcrText(rowResult.data.text);
+            if (vin) break;
+          }
+        }
       }
       if (vin) {
         setValue('vehicleVin', vin, { shouldDirty: true, shouldValidate: true });
@@ -535,6 +584,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
       }
     >
       <form id="work-order-form" onSubmit={handleSubmit(onSubmit)} className="min-w-0 max-w-full overflow-x-hidden space-y-4 sm:space-y-7">
+        {partQuantityInputs}
         {/* Sekcija 1: Klijent */}
         <section>
           <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 flex items-center gap-2">
@@ -1080,7 +1130,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         inputMode="decimal"
                         min={0.01}
                         step="any"
-                        {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 1 })}
+                        value={watchedParts[idx]?.qty ?? 0}
+                        onChange={(event) => setValue(`parts.${idx}.qty`, Number(event.target.value) || 0, { shouldDirty: true, shouldValidate: true })}
                         className="w-full appearance-none px-3 py-2 text-sm bg-background border border-input rounded-md text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </div>
@@ -1219,10 +1270,8 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                           inputMode="decimal"
                           min={0.01}
                           step="any"
-                          {...register(`parts.${idx}.qty`, {
-                            valueAsNumber: true,
-                            min: 0.01,
-                          })}
+                          value={watchedParts[idx]?.qty ?? 0}
+                          onChange={(event) => setValue(`parts.${idx}.qty`, Number(event.target.value) || 0, { shouldDirty: true, shouldValidate: true })}
                           className="w-full appearance-none px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />
                       </td>
