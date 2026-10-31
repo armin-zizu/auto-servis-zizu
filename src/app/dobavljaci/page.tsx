@@ -6,6 +6,7 @@ import AppLayout from '@/components/AppLayout';
 import { ArrowRight, Building2, Plus, Trash2 } from 'lucide-react';
 import { SUPPLIER_PAYMENTS_STORAGE_KEY, SUPPLIERS_STORAGE_KEY, DEFAULT_SUPPLIER, DEFAULT_SUPPLIERS, SupplierPaymentRecord } from '@/app/work-order-managment/data/mockWorkOrders';
 import { pull, readCache, subscribe, writeCache, push } from '@/lib/syncStore';
+import { supplierSlug } from '@/lib/supplierRoutes';
 
 const money = (value: number) => `${value.toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM`;
 
@@ -66,7 +67,7 @@ export default function SuppliersPage() {
             const supplierPayments = payments.filter((payment) => payment.supplier === supplier);
             const supplierPaidTotal = supplierPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
             const isDefaultSupplier = supplier.toLocaleLowerCase() === DEFAULT_SUPPLIER.toLocaleLowerCase();
-            const href = isDefaultSupplier ? '/dobavljaci/motorex' : `/dobavljaci/${encodeURIComponent(supplier.toLowerCase().replace(/\s+/g, '-'))}`;
+            const href = isDefaultSupplier ? '/dobavljaci/motorex' : `/dobavljaci/${encodeURIComponent(supplierSlug(supplier))}`;
             return (
               <div key={supplier} className="group min-w-0 rounded-xl border border-border bg-card p-3 shadow-card transition hover:border-primary/30 hover:shadow-card-hover sm:p-5">
                 <div className="flex min-w-0 items-start justify-between gap-2">

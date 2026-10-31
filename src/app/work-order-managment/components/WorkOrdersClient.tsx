@@ -25,9 +25,11 @@ import {
   WorkOrder,
   mockWorkOrders,
   DEFAULT_SUPPLIER,
+  DEFAULT_SUPPLIERS,
+  SUPPLIERS_STORAGE_KEY,
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
-import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
+import { readCache, writeCache, subscribe, push, pull } from '@/lib/syncStore';
 import { orderFinanceDate, orderServiceProfit } from '@/lib/financeData';
 import { orderSupplierPaymentState } from '@/lib/supplierPayments';
 
@@ -82,6 +84,8 @@ export default function WorkOrdersClient() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'Svi'>('Svi');
   const [mechanicFilter, setMechanicFilter] = useState<string>('Svi');
+  const [supplierFilter, setSupplierFilter] = useState<string>('Svi');
+  const [registeredSuppliers, setRegisteredSuppliers] = useState<string[]>(DEFAULT_SUPPLIERS);
   const [sortKey, setSortKey] = useState<SortKey>('orderNum');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -129,6 +133,15 @@ export default function WorkOrdersClient() {
     };
   }, []);
 
+  useEffect(() => {
+    const refreshSuppliers = () => {
+      setRegisteredSuppliers(readCache<string[]>(SUPPLIERS_STORAGE_KEY, DEFAULT_SUPPLIERS));
+    };
+    refreshSuppliers();
+    void pull<string[]>(SUPPLIERS_STORAGE_KEY).then(refreshSuppliers);
+    return subscribe<string[]>(SUPPLIERS_STORAGE_KEY, refreshSuppliers);
+  }, []);
+
   // A refresh must only read data. Persist exclusively from a deliberate user
   // action below; otherwise an empty/stale render can overwrite the shared
   // list while another device is loading it.
@@ -162,6 +175,18 @@ export default function WorkOrdersClient() {
     () => ['Svi', ...activeMechanicNames(mechanics)],
     [mechanics]
   );
+  const supplierFilterOptions = useMemo(() => {
+    const orderSuppliers = orders.flatMap((order) => [
+      order.supplier,
+      ...order.parts.map((part) => part.supplier),
+    ]);
+    const unique = new Map<string, string>();
+    for (const supplier of [...DEFAULT_SUPPLIERS, ...registeredSuppliers, ...orderSuppliers]) {
+      const name = supplier?.trim();
+      if (name && !unique.has(name.toLocaleLowerCase())) unique.set(name.toLocaleLowerCase(), name);
+    }
+    return ['Svi', ...unique.values()];
+  }, [orders, registeredSuppliers]);
 
   const filtered = useMemo(() => {
     let result = orders;
@@ -196,6 +221,13 @@ export default function WorkOrdersClient() {
     if (mechanicFilter !== 'Svi') {
       result = result.filter((o) => o.mechanic === mechanicFilter);
     }
+    if (supplierFilter !== 'Svi') {
+      const selectedSupplier = supplierFilter.toLocaleLowerCase();
+      result = result.filter((order) =>
+        order.supplier?.trim().toLocaleLowerCase() === selectedSupplier ||
+        order.parts.some((part) => (part.supplier?.trim() || DEFAULT_SUPPLIER).toLocaleLowerCase() === selectedSupplier)
+      );
+    }
     if (sortKey) {
       result = [...result].sort((a, b) => {
         if (sortKey === 'workDate') {
@@ -215,7 +247,7 @@ export default function WorkOrdersClient() {
       });
     }
     return result;
-  }, [orders, search, statusFilter, activeOnly, dateFrom, dateTo, financeFilter, mechanicFilter, sortKey, sortDir]);
+  }, [orders, search, statusFilter, activeOnly, dateFrom, dateTo, financeFilter, mechanicFilter, supplierFilter, sortKey, sortDir]);
 
   const localIsoDate = (date: Date) => {
     const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
@@ -388,7 +420,7 @@ export default function WorkOrdersClient() {
   return (
     <div className="min-w-0 px-3 py-6 sm:px-6 lg:px-8 xl:px-10 max-w-screen-2xl mx-auto">
       {/* Zaglavlje */}
-      <div className="mb-6 flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+      <div className="mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Radni nalozi</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -397,33 +429,30 @@ export default function WorkOrdersClient() {
             aktivnih
           </p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 active:scale-95 transition-all duration-150 shadow-card sm:w-auto"
-        >
-          <Plus size={16} />
-          Novi radni nalog
-        </button>
       </div>
 
       {/* Traka filtera */}
       <div className="bg-card border border-border rounded-xl shadow-card mb-4">
-        <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
-          <div className="flex items-center gap-1.5 flex-wrap w-full">
-            <span className="text-xs font-medium text-muted-foreground mr-1">Period:</span>
-            <button type="button" onClick={setWeekRange} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Ova sedmica</button>
-            <button type="button" onClick={() => setRecentRange(15)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 15 dana</button>
-            <button type="button" onClick={() => setRecentRange(30)} className="px-3 py-1.5 text-xs font-medium rounded-full bg-muted hover:bg-secondary">Zadnjih 30 dana</button>
-            <label className="text-xs text-muted-foreground flex items-center gap-1">Od
-              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="h-8 px-2 py-1 text-xs bg-background border border-input rounded-lg" />
-            </label>
-            <label className="text-xs text-muted-foreground flex items-center gap-1">Do
-              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="h-8 px-2 py-1 text-xs bg-background border border-input rounded-lg" />
-            </label>
-            {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setFinanceFilter(''); setPage(1); }} className="px-2 py-1.5 text-xs text-primary hover:underline">Očisti period</button>}
+        <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
+          <div className="w-full">
+            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Period</p>
+            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
+              <button type="button" onClick={setWeekRange} className="min-w-0 whitespace-nowrap rounded-full bg-muted px-1 py-1.5 text-[10px] font-medium tracking-tight hover:bg-secondary sm:px-3 sm:text-xs">Ova sedmica</button>
+              <button type="button" onClick={() => setRecentRange(15)} className="min-w-0 whitespace-nowrap rounded-full bg-muted px-1 py-1.5 text-[10px] font-medium tracking-tight hover:bg-secondary sm:px-3 sm:text-xs">Zadnjih 15 dana</button>
+              <button type="button" onClick={() => setRecentRange(30)} className="min-w-0 whitespace-nowrap rounded-full bg-muted px-1 py-1.5 text-[10px] font-medium tracking-tight hover:bg-secondary sm:px-3 sm:text-xs">Zadnjih 30 dana</button>
+            </div>
           </div>
+          <div className="grid w-full grid-cols-2 gap-2">
+            <label className="min-w-0 text-xs text-muted-foreground">Od
+              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="mt-1 block h-9 w-full min-w-0 rounded-lg border border-input bg-background px-2 py-1 text-xs" />
+            </label>
+            <label className="min-w-0 text-xs text-muted-foreground">Do
+              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="mt-1 block h-9 w-full min-w-0 rounded-lg border border-input bg-background px-2 py-1 text-xs" />
+            </label>
+          </div>
+          {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setFinanceFilter(''); setPage(1); }} className="px-1 py-1 text-xs text-primary hover:underline">Očisti period</button>}
           {/* Pretraga */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative min-w-0 w-full sm:min-w-[200px] sm:flex-1">
             <Search
               size={15}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -441,7 +470,7 @@ export default function WorkOrdersClient() {
           </div>
 
           {/* Filter statusa */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex w-full flex-wrap items-center gap-1.5">
             {(['Svi', ...ALL_STATUSES] as const).map((s) => (
               <button
                 key={`filter-status-${s}`}
@@ -461,22 +490,51 @@ export default function WorkOrdersClient() {
             ))}
           </div>
 
-          {/* Filter majstora */}
-          <select
-            value={mechanicFilter}
-            onChange={(e) => {
-              setMechanicFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
-          >
-            {mechanicFilterOptions.map((m) => (
-              <option key={`mech-filter-${m}`} value={m}>
-                {m === 'Svi' ? 'Svi majstori' : m}
-              </option>
-            ))}
-          </select>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            {/* Filter majstora */}
+            <select
+              value={mechanicFilter}
+              onChange={(e) => {
+                setMechanicFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full min-w-0 px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground sm:w-auto"
+              aria-label="Filtriraj po majstoru"
+            >
+              {mechanicFilterOptions.map((m) => (
+                <option key={`mech-filter-${m}`} value={m}>
+                  {m === 'Svi' ? 'Svi majstori' : m}
+                </option>
+              ))}
+            </select>
+            {/* Filter dobavljača */}
+            <select
+              value={supplierFilter}
+              onChange={(e) => {
+                setSupplierFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full min-w-0 px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground sm:w-auto"
+              aria-label="Filtriraj po dobavljaču"
+            >
+              {supplierFilterOptions.map((supplier) => (
+                <option key={`supplier-filter-${supplier}`} value={supplier}>
+                  {supplier === 'Svi' ? 'Svi dobavljači' : supplier}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+      </div>
+
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-card transition-all duration-150 hover:bg-primary/90 active:scale-95 sm:w-auto"
+        >
+          <Plus size={16} />
+          Novi radni nalog
+        </button>
       </div>
 
       {/* Traka za grupne akcije */}
