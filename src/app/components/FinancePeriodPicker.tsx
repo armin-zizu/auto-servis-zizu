@@ -113,28 +113,28 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
           ))}
         </select>
       ) : (
-        <div className="grid min-w-0 flex-[1_1_100%] grid-cols-2 items-stretch gap-3">
-          <label className="flex min-w-0 flex-col rounded-lg border border-border bg-background p-2 text-xs leading-4 text-muted-foreground">
-            <span className="h-4">Od</span>
+        <div className="grid min-w-0 flex-[1_1_100%] grid-cols-2 items-end gap-2 rounded-lg border border-border bg-background p-2 sm:gap-3 sm:p-3">
+          <label className="flex min-w-0 flex-col gap-1 text-xs leading-4 text-muted-foreground">
+            <span>Od</span>
             <input
               type="date"
               value={period.from || ''}
               onChange={(event) =>
                 onChange({ mode: 'range', from: event.target.value, to: period.to })
               }
-              className={`${inputClass} mt-1 block box-border h-10 w-full flex-1`}
+              className={`${inputClass} block box-border h-10 w-full`}
               aria-label="Od datuma"
             />
           </label>
-          <label className="flex min-w-0 flex-col rounded-lg border border-border bg-background p-2 text-xs leading-4 text-muted-foreground">
-            <span className="h-4">Do</span>
+          <label className="flex min-w-0 flex-col gap-1 text-xs leading-4 text-muted-foreground">
+            <span>Do</span>
             <input
               type="date"
               value={period.to || ''}
               onChange={(event) =>
                 onChange({ mode: 'range', from: period.from, to: event.target.value })
               }
-              className={`${inputClass} mt-1 block box-border h-10 w-full flex-1`}
+              className={`${inputClass} block box-border h-10 w-full`}
               aria-label="Do datuma"
             />
           </label>
