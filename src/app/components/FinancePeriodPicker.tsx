@@ -68,7 +68,7 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
   const showRange = period.mode === 'range';
 
   const inputClass =
-    'min-w-0 max-w-full px-2 py-2 text-xs sm:px-3 sm:text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring';
+    'min-w-0 w-full max-w-full appearance-none border-0 bg-transparent px-0 py-2 text-[11px] focus:outline-none focus:ring-0 sm:text-sm';
 
   return (
     <div className="min-w-0 bg-card border border-border rounded-xl shadow-card p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-3">
@@ -113,8 +113,8 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
           ))}
         </select>
       ) : (
-        <div className="grid min-w-0 flex-[1_1_100%] grid-cols-2 items-end gap-2 rounded-lg border border-border bg-background p-2 sm:gap-3 sm:p-3">
-          <label className="flex min-w-0 flex-col gap-1 text-xs leading-4 text-muted-foreground">
+        <div className="grid min-w-0 flex-[1_1_100%] grid-cols-2 items-end rounded-lg border border-input bg-background p-2 sm:gap-3 sm:p-3">
+          <label className="flex min-w-0 flex-col gap-1 pr-2 text-xs leading-4 text-muted-foreground sm:pr-0">
             <span>Od</span>
             <input
               type="date"
@@ -126,7 +126,7 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
               aria-label="Od datuma"
             />
           </label>
-          <label className="flex min-w-0 flex-col gap-1 text-xs leading-4 text-muted-foreground">
+          <label className="flex min-w-0 flex-col gap-1 border-l border-border pl-2 text-xs leading-4 text-muted-foreground sm:border-0 sm:pl-0">
             <span>Do</span>
             <input
               type="date"
