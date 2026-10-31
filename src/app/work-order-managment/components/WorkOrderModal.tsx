@@ -420,11 +420,19 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
           tessedit_char_whitelist: '',
         });
-        const result = await worker.recognize(ocrImages[index]);
+        const result = await worker.recognize(ocrImages[index], {}, { blocks: true });
         const vinLines = findVinLabelLines(result.data);
         vin = vinLines
           .map((line) => findVinInOcrText(line.text))
           .find((candidate): candidate is string => Boolean(candidate)) ?? null;
+        if (!vin) {
+          const labeledTextLines = result.data.text
+            .split(/\r?\n/)
+            .filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line));
+          vin = labeledTextLines
+            .map((line) => findVinInOcrText(line))
+            .find((candidate): candidate is string => Boolean(candidate)) ?? null;
+        }
         if (!vin && vinLines.length) {
           await worker.setParameters({
             tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
@@ -432,7 +440,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           });
           for (const line of vinLines) {
             const row = cropRegistrationVinRow(ocrImages[index], line.bbox.y0, line.bbox.y1);
-            const rowResult = await worker.recognize(row);
+            const rowResult = await worker.recognize(row, {}, { blocks: false });
             vin = findVinInOcrText(rowResult.data.text);
             if (vin) break;
           }
