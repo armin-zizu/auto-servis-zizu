@@ -8,7 +8,11 @@ import WorkOrdersClient from './components/WorkOrdersClient';
 export default function WorkOrderManagementPage() {
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
-      <Suspense fallback={<div className="p-6 text-sm text-muted-foreground">Učitavanje radnih naloga…</div>}>
+      <Suspense
+        fallback={
+          <div className="p-6 text-sm text-muted-foreground">Učitavanje radnih naloga…</div>
+        }
+      >
         <WorkOrdersClient />
       </Suspense>
     </AppLayout>

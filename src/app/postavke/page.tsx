@@ -64,7 +64,7 @@ export default function SettingsPage() {
     }
   }, []);
 
-const saveAccounts = (next: Account[]) => {
+  const saveAccounts = (next: Account[]) => {
     setAccounts(next);
     writeCache(accountKey, next);
     void push(accountKey, next);
@@ -153,7 +153,7 @@ const saveAccounts = (next: Account[]) => {
     setNewPassword('');
     setMessage('Lozinka je promijenjena.');
   };
-const updateNotices = (payout: boolean, order: boolean) => {
+  const updateNotices = (payout: boolean, order: boolean) => {
     setPayoutNotices(payout);
     setOrderNotices(order);
     const value = { payout, order };
@@ -178,7 +178,7 @@ const updateNotices = (payout: boolean, order: boolean) => {
 
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
+      <div className="min-w-0 px-3 sm:px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
         <div>
           <Link href="/" className="text-xs text-primary hover:underline">
             Dashboard
@@ -217,7 +217,7 @@ const updateNotices = (payout: boolean, order: boolean) => {
                   />
                 ))}
               </div>
-<button
+              <button
                 type="button"
                 onClick={() => {
                   writeCache(workshopKey, workshop);
@@ -286,16 +286,16 @@ const updateNotices = (payout: boolean, order: boolean) => {
               <div className="divide-y divide-border mt-4">
                 {accounts.map((account) => (
                   <div key={account.id} className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">{account.fullName}</p>
-                        <p className="text-xs text-muted-foreground">{account.email}</p>
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="break-words text-sm font-medium">{account.fullName}</p>
+                        <p className="break-all text-xs text-muted-foreground">{account.email}</p>
                         <div className="flex items-center gap-2 mt-2">
                           <span className="text-xs text-muted-foreground">Majstor:</span>
                           <select
                             value={account.mechanicId ?? ''}
                             onChange={(e) => linkAccount(account.id, e.target.value)}
-                            className="px-2 py-1 text-xs bg-background border border-input rounded-lg"
+                            className="max-w-full px-2 py-1 text-xs bg-background border border-input rounded-lg"
                           >
                             <option value="">Nije povezan</option>
                             {mechanics.map((mechanic) => (
@@ -307,7 +307,7 @@ const updateNotices = (payout: boolean, order: boolean) => {
                           </select>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
                           onClick={() => setEditingId(editingId === account.id ? null : account.id)}
@@ -327,13 +327,13 @@ const updateNotices = (payout: boolean, order: boolean) => {
                       </div>
                     </div>
                     {editingId === account.id && (
-                      <div className="flex gap-2 mt-3 max-w-md">
+                      <div className="mt-3 flex max-w-md gap-2">
                         <input
                           type="password"
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
                           placeholder="Nova lozinka"
-                          className="flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg"
+                          className="min-w-0 flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg"
                         />
                         <button
                           type="button"
@@ -395,18 +395,18 @@ const updateNotices = (payout: boolean, order: boolean) => {
                 <h2 className="font-semibold flex items-center gap-2">
                   <KeyRound size={18} className="text-primary" /> Admin lozinka
                 </h2>
-                <div className="flex gap-2 mt-4">
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   <input
                     type="password"
                     minLength={6}
                     value={ownerPassword}
                     onChange={(e) => setOwnerPassword(e.target.value)}
                     placeholder="Nova admin lozinka"
-                    className="flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg"
+                    className="min-w-0 flex-1 px-3 py-2 text-sm bg-background border border-input rounded-lg"
                   />
                   <button
                     type="button"
-onClick={() => {
+                    onClick={() => {
                       if (ownerPassword.length >= 6) {
                         writeCache(OWNER_PASSWORD_KEY, ownerPassword);
                         void push(OWNER_PASSWORD_KEY, ownerPassword);
@@ -432,7 +432,7 @@ onClick={() => {
                 </p>
               </div>
             </section>
-            <section className="bg-card border border-border rounded-xl shadow-card p-5 flex items-center justify-between">
+            <section className="bg-card border border-border rounded-xl shadow-card p-4 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center sm:p-5">
               <div>
                 <h2 className="font-semibold">Sigurnosna kopija</h2>
                 <p className="text-xs text-muted-foreground mt-1">

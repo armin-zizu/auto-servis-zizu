@@ -13,6 +13,7 @@ import {
   Users,
   Wrench,
   X,
+  WalletCards,
 } from 'lucide-react';
 
 interface MobileNavProps {
@@ -27,11 +28,9 @@ const mainItems = [
 ];
 
 const moreItems = [
+  { label: 'Dobavljači', href: '/dobavljaci', icon: <WalletCards size={18} />, ownerOnly: false },
   { label: 'Majstori', href: '/majstori', icon: <Wrench size={18} />, ownerOnly: true },
   { label: 'Klijenti', href: '/klijenti', icon: <Users size={18} />, ownerOnly: true },
-  { label: 'Isplate majstorima', href: '/majstori/isplate', icon: <DollarSign size={18} /> },
-  { label: 'Prihodi', href: '/finansije/prihodi', icon: <DollarSign size={18} /> },
-  { label: 'Troškovi', href: '/finansije/troskovi', icon: <DollarSign size={18} /> },
   { label: 'Postavke', href: '/postavke', icon: <Settings size={18} />, ownerOnly: true },
 ];
 

@@ -14,6 +14,7 @@ import {
   Settings,
   Users,
   DollarSign,
+  WalletCards,
 } from 'lucide-react';
 
 interface NavItem {
@@ -47,24 +48,13 @@ const bottomNavItems: NavItem[] = [
   },
 ];
 
-const financeNavItems = [
-  { label: 'Pregled finansija', href: '/finansije' },
-  { label: 'Prihodi', href: '/finansije/prihodi' },
-  { label: 'Troškovi', href: '/finansije/troskovi' },
-  { label: 'Isplate majstorima', href: '/majstori/isplate' },
-];
-
 interface SidebarProps {
   userRole?: 'owner' | 'mechanic';
   userName?: string;
   userEmail?: string;
 }
 
-export default function Sidebar({
-  userRole = 'owner',
-  userName = 'Armin Mujić',
-  userEmail = 'armin@autoservis.com',
-}: SidebarProps) {
+export default function Sidebar({ userRole = 'owner', userName = 'Armin Mujić' }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
 
@@ -166,24 +156,22 @@ export default function Sidebar({
             </span>
             {!collapsed && <span className="flex-1 truncate">Finansije</span>}
           </Link>
-          {!collapsed && (
-            <div className="ml-9 mt-1 space-y-0.5 border-l border-border pl-3">
-              {financeNavItems.slice(1).map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block px-2 py-1.5 rounded-md text-xs transition-colors ${
-                    pathname === item.href
-                      ? 'text-primary font-medium bg-primary/5'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          )}
         </div>
+
+        <Link
+          href="/dobavljaci"
+          title={collapsed ? 'Dobavljači' : undefined}
+          className={`group flex items-center gap-3 px-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 relative ${
+            pathname.startsWith('/dobavljaci')
+              ? 'bg-primary/10 text-primary'
+              : 'text-secondary-foreground hover:bg-muted hover:text-foreground'
+          } ${collapsed ? 'justify-center' : ''}`}
+        >
+          <span className="shrink-0">
+            <WalletCards size={20} />
+          </span>
+          {!collapsed && <span>Dobavljači</span>}
+        </Link>
 
         {userRole === 'owner' && (
           <>

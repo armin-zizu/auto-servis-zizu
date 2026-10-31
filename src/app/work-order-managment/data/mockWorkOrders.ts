@@ -7,6 +7,7 @@ export interface PartLineItem {
   name: string;
   qty: number;
   unitCost: number;
+  supplier?: string;
   category?: 'part' | 'oil';
   image?: string;
   images?: string[];
@@ -42,25 +43,48 @@ export interface WorkOrder {
   notes: string;
   createdBy: string;
   createdByRole: 'owner' | 'mechanic';
+  workDate?: string;
   createdAt: string;
   updatedAt: string;
   supplierPartsDiscountPct?: number;
   supplierOilDiscountPct?: number;
+  supplier?: string;
   partsPurchaseCost?: number;
   serviceProfit?: number;
+  estimateImage?: string;
+  registrationImage?: string;
+  supplierPaymentAllocations?: SupplierPaymentAllocation[];
 }
 
-function calcOrder(
-  parts: PartLineItem[],
-  laborEntries: LaborEntry[],
-  discountPct: number,
-  mechanicPayoutPct: number
-) {
+export interface SupplierPaymentAllocation {
+  paymentId: string;
+  supplier: string;
+  amount: number;
+  paidAt: string;
+}
+
+export interface SupplierPaymentRecord {
+  id: string;
+  supplier: string;
+  paidAt: string;
+  from: string;
+  to: string;
+  amount: number;
+  orderIds: string[];
+  orderAmounts: Record<string, number>;
+}
+
+export const SUPPLIER_PAYMENTS_STORAGE_KEY = 'autoservis-supplier-payments';
+export const SUPPLIERS_STORAGE_KEY = 'autoservis-suppliers';
+export const DEFAULT_SUPPLIERS = ['Motorex'];
+export const DEFAULT_SUPPLIER = 'Motorex';
+
+function calcOrder(parts: PartLineItem[], laborEntries: LaborEntry[], discountPct: number) {
   const rawParts = parts.reduce((s, p) => s + p.qty * p.unitCost, 0);
   const partsTotal = rawParts * (1 - discountPct / 100);
   const laborTotal = laborEntries.reduce((s, l) => s + l.hours * l.rate, 0);
   const orderTotal = partsTotal + laborTotal;
-  const mechanicPayout = laborTotal * (mechanicPayoutPct / 100);
+  const mechanicPayout = 0;
   return { partsTotal, laborTotal, orderTotal, mechanicPayout };
 }
 
@@ -398,7 +422,7 @@ const orders: Omit<
 ];
 
 export const mockWorkOrders: WorkOrder[] = orders.map((o) => {
-  const calcs = calcOrder(o.parts, o.laborEntries, o.discountPct, o.mechanicPayoutPct);
+  const calcs = calcOrder(o.parts, o.laborEntries, o.discountPct);
   return {
     ...o,
     vehicle: `${o.vehicleYear} ${o.vehicleMake} ${o.vehicleModel}`,

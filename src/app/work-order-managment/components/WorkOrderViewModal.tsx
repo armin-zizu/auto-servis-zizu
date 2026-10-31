@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import {
   CheckSquare,
   Edit2,
@@ -10,10 +11,12 @@ import {
   Wrench,
   FileText,
   UserCircle2,
+  X,
 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { WorkOrder } from '../data/mockWorkOrders';
+import { orderServiceProfit } from '@/lib/financeData';
 
 interface WorkOrderViewModalProps {
   open: boolean;
@@ -21,6 +24,7 @@ interface WorkOrderViewModalProps {
   order: WorkOrder;
   onEdit: () => void;
   onCloseOrder: () => void;
+  onRemoveImage: (image: 'estimateImage' | 'registrationImage') => void;
 }
 
 export default function WorkOrderViewModal({
@@ -29,8 +33,10 @@ export default function WorkOrderViewModal({
   order,
   onEdit,
   onCloseOrder,
+  onRemoveImage,
 }: WorkOrderViewModalProps) {
   const [selectedPartImage, setSelectedPartImage] = React.useState<string | null>(null);
+  const serviceProfit = orderServiceProfit(order);
 
   const handlePrintInvoice = () => {
     const printWindow = window.open('', '_blank', 'width=900,height=700');
@@ -45,6 +51,13 @@ export default function WorkOrderViewModal({
     const money = (value: number) => `${value.toFixed(2)} KM`;
     const rawPartsTotal = order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0);
     const customerDiscount = rawPartsTotal * (order.discountPct / 100);
+
+    const rawLaborTotal = order.laborEntries.reduce(
+      (sum, entry) => sum + entry.hours * entry.rate,
+      0
+    );
+    const priceBeforeDiscount = rawPartsTotal + rawLaborTotal;
+    const priceAfterDiscount = rawPartsTotal - customerDiscount + rawLaborTotal;
 
     printWindow.document.write(`
       <!doctype html>
@@ -89,14 +102,15 @@ export default function WorkOrderViewModal({
             ${order.parts.map((part) => `<tr><td>${escapeHtml(part.name)}${part.category === 'oil' ? ' <span class="muted">(ulje)</span>' : ''}</td><td>${part.qty}</td><td>${money(part.unitCost)}</td><td>${money(part.qty * part.unitCost)}</td></tr>`).join('')}
           </tbody></table>
           <h2>Rad</h2>
-          <table><thead><tr><th>Usluga</th><th>Sati</th><th>Cijena/sat</th><th>Međuzbir</th></tr></thead><tbody>
-            ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${entry.hours}</td><td>${money(entry.rate)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
+          <table><thead><tr><th>Opis usluge</th><th>Cijena</th></tr></thead><tbody>
+            ${order.laborEntries.map((entry) => `<tr><td>${escapeHtml(entry.description)}</td><td>${money(entry.hours * entry.rate)}</td></tr>`).join('')}
           </tbody></table>
           <div class="total">
-            <div><span>Dijelovi</span><strong>${money(order.partsTotal)}</strong></div>
-            ${order.discountPct > 0 ? `<div class="discount"><span>Popust klijentu (${order.discountPct}%)</span><strong>ušteda ${money(customerDiscount)}</strong></div>` : ''}
-            <div><span>Rad</span><strong>${money(order.laborTotal)}</strong></div>
-            <div class="grand"><span>Ukupno</span><strong>${money(order.orderTotal)}</strong></div>
+            <div><span>Dijelovi bez popusta</span><strong>${money(rawPartsTotal)}</strong></div>
+            <div><span>Rad</span><strong>${money(rawLaborTotal)}</strong></div>
+            <div><span>Cijena prije popusta</span><strong>${money(priceBeforeDiscount)}</strong></div>
+            ${order.discountPct > 0 ? `<div class="discount"><span>Popust klijentu (${order.discountPct}%)</span><strong>− ${money(customerDiscount)}</strong></div>` : ''}
+            <div class="grand"><span>${order.discountPct > 0 ? 'Ukupno sa popustom' : 'Ukupno'}</span><strong>${money(order.discountPct > 0 ? priceAfterDiscount : priceBeforeDiscount)}</strong></div>
           </div>
           ${order.notes ? `<div class="notes"><strong>Napomene</strong><p>${escapeHtml(order.notes)}</p></div>` : ''}
         </body>
@@ -158,22 +172,22 @@ export default function WorkOrderViewModal({
           </div>
 
           {/* Info grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Phone size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Klijent</p>
                 <p className="text-sm font-semibold text-foreground">{order.clientName}</p>
                 <p className="text-xs text-muted-foreground">{order.clientPhone}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Car size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Vozilo</p>
                 <p className="text-sm font-semibold text-foreground">{order.vehicle}</p>
                 {order.vehicleVin && (
@@ -181,20 +195,20 @@ export default function WorkOrderViewModal({
                 )}
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <Wrench size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Majstor</p>
                 <p className="text-sm font-semibold text-foreground">{order.mechanic}</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-muted/30 rounded-lg">
+            <div className="flex min-w-0 items-start gap-2 p-2 sm:gap-3 sm:p-3 bg-muted/30 rounded-lg">
               <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                 <UserCircle2 size={15} className="text-primary" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="text-xs text-muted-foreground mb-0.5">Nalog kreirao</p>
                 <p className="text-sm font-semibold text-foreground">{order.createdBy || '—'}</p>
                 <p className="text-xs text-muted-foreground">
@@ -205,10 +219,158 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
+          {(order.estimateImage || order.registrationImage) && (
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {order.estimateImage && (
+                <div className="min-w-0">
+                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">
+                    Predračun / faktura
+                  </h4>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPartImage(order.estimateImage || null)}
+                      className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
+                    >
+                      <Image
+                        src={order.estimateImage}
+                        alt="Predračun ili faktura uz radni nalog"
+                        width={400}
+                        height={180}
+                        unoptimized
+                        className="h-28 w-full rounded object-contain sm:h-36"
+                      />
+                      <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">
+                        Otvori sliku
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Obriši fakturu sa naloga"
+                      title="Obriši sliku"
+                      onClick={() => onRemoveImage('estimateImage')}
+                      className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {order.registrationImage && (
+                <div className="min-w-0">
+                  <h4 className="mb-2 text-xs font-semibold text-foreground sm:text-sm">
+                    Saobraćajna dozvola
+                  </h4>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPartImage(order.registrationImage || null)}
+                      className="w-full rounded-lg border border-border bg-muted/20 p-1.5 text-left hover:bg-muted/40 sm:p-2"
+                    >
+                      <Image
+                        src={order.registrationImage}
+                        alt="Saobraćajna dozvola uz radni nalog"
+                        width={400}
+                        height={180}
+                        unoptimized
+                        className="h-28 w-full rounded object-contain sm:h-36"
+                      />
+                      <span className="mt-1 block text-center text-[10px] text-primary sm:text-xs">
+                        Otvori sliku
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Obriši saobraćajnu dozvolu sa naloga"
+                      title="Obriši sliku"
+                      onClick={() => onRemoveImage('registrationImage')}
+                      className="absolute right-2 top-2 rounded-full bg-card p-1.5 text-foreground shadow hover:bg-red-50 hover:text-red-600"
+                    >
+                      <X size={15} />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Tabela dijelova */}
           <div>
             <h4 className="text-sm font-semibold text-foreground mb-2">Dijelovi i materijal</h4>
-            <div className="rounded-lg border border-border overflow-x-auto">
+            <div className="space-y-2 sm:hidden">
+              {order.parts.map((part) => (
+                <div
+                  key={part.id}
+                  className="min-w-0 rounded-lg border border-border bg-background p-3"
+                >
+                  <div className="flex min-w-0 items-start justify-between gap-2">
+                    <p className="min-w-0 break-words text-sm font-medium text-foreground">
+                      {part.name}
+                      {part.category === 'oil' ? ' (ulje)' : ''}
+                    </p>
+                    <p className="shrink-0 text-sm font-semibold tabular-nums text-foreground">
+                      {(part.qty * part.unitCost).toFixed(2)} KM
+                    </p>
+                  </div>
+                  {part.images?.length || part.image ? (
+                    <div className="mt-2 flex gap-1.5">
+                      {(part.images || (part.image ? [part.image] : [])).map(
+                        (image, imageIndex) => (
+                          <button
+                            key={`${part.id}-mobile-view-image-${imageIndex}`}
+                            type="button"
+                            onClick={() => setSelectedPartImage(image)}
+                            className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                            title="Otvori sliku dijela"
+                          >
+                            <Image
+                              src={image}
+                              alt={`Slika dijela ${part.name} ${imageIndex + 1}`}
+                              width={48}
+                              height={48}
+                              unoptimized
+                              className="h-12 w-12 rounded border border-border object-cover"
+                            />
+                          </button>
+                        )
+                      )}
+                    </div>
+                  ) : null}
+                  <div className="mt-2 grid grid-cols-2 gap-2 border-t border-border pt-2 text-xs">
+                    <div>
+                      <p className="text-muted-foreground">Količina</p>
+                      <p className="mt-0.5 tabular-nums text-foreground">{part.qty}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-muted-foreground">Jed. cijena</p>
+                      <p className="mt-0.5 tabular-nums text-foreground">
+                        {part.unitCost.toFixed(2)} KM
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {order.discountPct > 0 && (
+                <div className="flex justify-between gap-2 rounded-lg bg-emerald-50/50 px-3 py-2 text-xs text-emerald-700">
+                  <span>Popust za klijenta ({order.discountPct}%)</span>
+                  <span className="shrink-0 tabular-nums">
+                    -
+                    {(
+                      (order.parts.reduce((sum, part) => sum + part.qty * part.unitCost, 0) *
+                        order.discountPct) /
+                      100
+                    ).toFixed(2)}{' '}
+                    KM
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between gap-2 rounded-lg border-t-2 border-border bg-muted/30 px-3 py-2.5 text-sm font-bold text-foreground">
+                <span>Ukupno dijelovi</span>
+                <span className="shrink-0 tabular-nums">{order.partsTotal.toFixed(2)} KM</span>
+              </div>
+            </div>
+            <div className="hidden rounded-lg border border-border overflow-x-auto sm:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/40 border-b border-border">
@@ -248,9 +410,12 @@ export default function WorkOrderViewModal({
                                   className="block rounded focus:outline-none focus:ring-2 focus:ring-primary"
                                   title="Otvori sliku dijela"
                                 >
-                                  <img
+                                  <Image
                                     src={image}
                                     alt={`Slika dijela ${part.name} ${imageIndex + 1}`}
+                                    width={48}
+                                    height={48}
+                                    unoptimized
                                     className="h-12 w-12 rounded object-cover border border-border"
                                   />
                                 </button>
@@ -317,13 +482,7 @@ export default function WorkOrderViewModal({
                       Usluga
                     </th>
                     <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                      Sati
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
                       Cijena
-                    </th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-muted-foreground">
-                      Međuzbir
                     </th>
                   </tr>
                 </thead>
@@ -332,12 +491,6 @@ export default function WorkOrderViewModal({
                     <tr key={entry.id} className="hover:bg-muted/20">
                       <td className="px-4 py-2.5 text-foreground">{entry.description}</td>
                       <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                        {entry.hours}h
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-muted-foreground tabular-nums">
-                        {entry.rate} KM/sat
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-foreground">
                         {(entry.hours * entry.rate).toFixed(2)} KM
                       </td>
                     </tr>
@@ -346,7 +499,7 @@ export default function WorkOrderViewModal({
                 <tfoot>
                   <tr className="border-t-2 border-border bg-muted/30">
                     <td
-                      colSpan={3}
+                      colSpan={1}
                       className="px-4 py-2.5 text-xs font-semibold text-right text-foreground"
                     >
                       Ukupno rad
@@ -382,7 +535,7 @@ export default function WorkOrderViewModal({
             </div>
           </div>
 
-          {order.partsPurchaseCost !== undefined && order.serviceProfit !== undefined && (
+          {order.partsPurchaseCost !== undefined && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                 <p className="text-xs text-orange-700 mb-1 font-medium">Nabavni trošak dijelova</p>
@@ -390,27 +543,27 @@ export default function WorkOrderViewModal({
                   {order.partsPurchaseCost.toFixed(2)} KM
                 </p>
                 <p className="text-xs text-orange-600 mt-1">
-                  Popust dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
+                  Vaš rabat: dijelovi {order.supplierPartsDiscountPct ?? 0}% · ulje{' '}
                   {order.supplierOilDiscountPct ?? 0}%
                 </p>
               </div>
               <div
-                className={`p-3 rounded-lg border ${order.serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
+                className={`p-3 rounded-lg border ${serviceProfit >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}
               >
                 <p
-                  className={`text-xs mb-1 font-medium ${order.serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
+                  className={`text-xs mb-1 font-medium ${serviceProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
                 >
                   Zarada servisa
                 </p>
                 <p
-                  className={`text-base font-bold tabular-nums ${order.serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
+                  className={`text-base font-bold tabular-nums ${serviceProfit >= 0 ? 'text-emerald-900' : 'text-red-900'}`}
                 >
-                  {order.serviceProfit.toFixed(2)} KM
+                  {serviceProfit.toFixed(2)} KM
                 </p>
                 <p
-                  className={`text-xs mt-1 ${order.serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
+                  className={`text-xs mt-1 ${serviceProfit >= 0 ? 'text-emerald-600' : 'text-red-600'}`}
                 >
-                  Nakon nabavke i isplate majstoru
+                  Rad + marža dijelova nakon popusta klijentu
                 </p>
               </div>
             </div>
@@ -428,13 +581,16 @@ export default function WorkOrderViewModal({
       <Modal
         open={selectedPartImage !== null}
         onClose={() => setSelectedPartImage(null)}
-        title="Slika zamijenjenog dijela"
+        title="Slika"
         size="lg"
       >
         {selectedPartImage && (
-          <img
+          <Image
             src={selectedPartImage}
             alt="Uvećana slika zamijenjenog dijela"
+            width={1200}
+            height={900}
+            unoptimized
             className="max-h-[65vh] w-full object-contain rounded-lg"
           />
         )}

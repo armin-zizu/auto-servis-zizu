@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Search,
@@ -19,14 +19,21 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import WorkOrderModal from './WorkOrderModal';
 import WorkOrderViewModal from './WorkOrderViewModal';
 import CompleteWorkOrderModal from './CompleteWorkOrderModal';
+import FinancePeriodPicker from '@/app/components/FinancePeriodPicker';
 import { toast } from 'sonner';
 import {
   ORDERS_STORAGE_KEY,
   WorkOrder,
   mockWorkOrders,
+  DEFAULT_SUPPLIER,
+  DEFAULT_SUPPLIERS,
+  SUPPLIERS_STORAGE_KEY,
 } from '@/app/work-order-managment/data/mockWorkOrders';
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
-import { readCache, writeCache, subscribe, push } from '@/lib/syncStore';
+import { readCache, writeCache, subscribe, push, pull } from '@/lib/syncStore';
+import { orderFinanceDate, orderServiceProfit } from '@/lib/financeData';
+import { PeriodFilter } from '@/lib/financeData';
+import { orderSupplierPaymentState } from '@/lib/supplierPayments';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
 
@@ -47,7 +54,26 @@ function normalizeOrders(orders: WorkOrder[]): WorkOrder[] {
     ...order,
     createdBy: order.createdBy ?? '',
     createdByRole: order.createdByRole ?? 'owner',
+    parts: (order.parts ?? []).map((part) => ({
+      ...part,
+      supplier: part.supplier?.trim() || DEFAULT_SUPPLIER,
+    })),
   }));
+}
+
+function sortableDate(order: WorkOrder): number {
+  const date = order.workDate || order.createdAt;
+  if (!date) return Number.NEGATIVE_INFINITY;
+
+  const isoDate = /^\d{4}-\d{2}-\d{2}(?:[T ].*)?$/.exec(date);
+  if (isoDate) {
+    const [year, month, day] = date.slice(0, 10).split('-').map(Number);
+    const timestamp = Date.UTC(year, month - 1, day);
+    return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
+  }
+
+  const timestamp = Date.parse(date);
+  return Number.isNaN(timestamp) ? Number.NEGATIVE_INFINITY : timestamp;
 }
 
 function readStoredOrders(): WorkOrder[] {
@@ -56,11 +82,12 @@ function readStoredOrders(): WorkOrder[] {
 }
 
 export default function WorkOrdersClient() {
-  const [orders, setOrders] = useState<WorkOrder[]>(mockWorkOrders);
-  const [storageLoaded, setStorageLoaded] = useState(false);
+  const [orders, setOrders] = useState<WorkOrder[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OrderStatus | 'Svi'>('Svi');
   const [mechanicFilter, setMechanicFilter] = useState<string>('Svi');
+  const [supplierFilter, setSupplierFilter] = useState<string>('Svi');
+  const [registeredSuppliers, setRegisteredSuppliers] = useState<string[]>(DEFAULT_SUPPLIERS);
   const [sortKey, setSortKey] = useState<SortKey>('orderNum');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
@@ -72,42 +99,80 @@ export default function WorkOrdersClient() {
   const [completingOrder, setCompletingOrder] = useState<WorkOrder | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
+  const [period, setPeriod] = useState<PeriodFilter>({
+    mode: 'month',
+    month: new Date().toISOString().slice(0, 7),
+  });
+  const [financeFilter, setFinanceFilter] = useState('');
+  // Becomes true once the initial pull from Supabase has resolved. Until then
+  // persistOrders is a no-op so a stale/empty local list can never overwrite
+  // the shared server copy (this is what made orders "disappear" between
+  // desktop and mobile).
+  const syncReadyRef = useRef(false);
   const searchParams = useSearchParams();
   const { mechanics } = useMechanics();
 
-useEffect(() => {
-    setOrders(readStoredOrders());
-    setStorageLoaded(true);
-    // Pull latest from shared storage on mount.
-    void import('@/lib/syncStore').then(({ pull }) => {
-      pull<WorkOrder[]>(ORDERS_STORAGE_KEY).then((remote) => {
-        if (remote) setOrders(normalizeOrders(remote));
-      });
+  useEffect(() => {
+    let active = true;
+    // Never push defaults before the shared copy has been read. Otherwise a
+    // new phone can overwrite saved orders with its empty/demo state.
+    void import('@/lib/syncStore').then(async ({ pull }) => {
+      const cached = normalizeOrders(readCache<WorkOrder[]>(ORDERS_STORAGE_KEY, []));
+      // Show cached data immediately so the UI isn't empty.
+      setOrders(cached);
+      const remote = await pull<WorkOrder[]>(ORDERS_STORAGE_KEY);
+      if (!active) return;
+      syncReadyRef.current = true;
+      setOrders(normalizeOrders(remote ?? cached));
     });
     // Subscribe to realtime changes from other devices.
     const unsub = subscribe<WorkOrder[]>(ORDERS_STORAGE_KEY, () => {
       setOrders(readStoredOrders());
     });
-    return () => unsub();
+    return () => {
+      active = false;
+      unsub();
+    };
   }, []);
 
-useEffect(() => {
-    if (!storageLoaded) return;
-    writeCache(ORDERS_STORAGE_KEY, orders);
-    // Push to shared storage so other devices see it.
-    void push(ORDERS_STORAGE_KEY, orders);
-  }, [orders, storageLoaded]);
+  useEffect(() => {
+    const refreshSuppliers = () => {
+      setRegisteredSuppliers(readCache<string[]>(SUPPLIERS_STORAGE_KEY, DEFAULT_SUPPLIERS));
+    };
+    refreshSuppliers();
+    void pull<string[]>(SUPPLIERS_STORAGE_KEY).then(refreshSuppliers);
+    return subscribe<string[]>(SUPPLIERS_STORAGE_KEY, refreshSuppliers);
+  }, []);
+
+  // A refresh must only read data. Persist exclusively from a deliberate user
+  // action below; otherwise an empty/stale render can overwrite the shared
+  // list while another device is loading it.
+  const persistOrders = useCallback((next: WorkOrder[]) => {
+    writeCache(ORDERS_STORAGE_KEY, next);
+    // Only push to the server after the initial pull has completed.
+    if (syncReadyRef.current) void push(ORDERS_STORAGE_KEY, next);
+  }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
     setActiveOnly(status === 'active');
     if (status && status !== 'active' && ALL_STATUSES.includes(status as OrderStatus)) {
       setStatusFilter(status as OrderStatus);
-    } else if (status === 'active') {
+    } else {
       setStatusFilter('Svi');
     }
+    const from = searchParams.get('from') || '';
+    const to = searchParams.get('to') || '';
+    if (from || to) {
+      setPeriod({ mode: 'range', from, to });
+    } else {
+      setPeriod({
+        mode: 'month',
+        month: searchParams.get('month') || new Date().toISOString().slice(0, 7),
+      });
+    }
+    setFinanceFilter(searchParams.get('finance') || '');
   }, [searchParams]);
 
   useEffect(() => {
@@ -118,12 +183,30 @@ useEffect(() => {
   }, [orders, searchParams]);
 
   const mechanicFilterOptions = useMemo(
-    () => [
-      'Svi',
-      ...Array.from(new Set([...activeMechanicNames(mechanics), ...orders.map((o) => o.mechanic)])),
-    ],
-    [mechanics, orders]
+    () => ['Svi', ...activeMechanicNames(mechanics)],
+    [mechanics]
   );
+  const supplierFilterOptions = useMemo(() => {
+    const orderSuppliers = orders.flatMap((order) => [
+      order.supplier,
+      ...order.parts.map((part) => part.supplier),
+    ]);
+    const unique = new Map<string, string>();
+    for (const supplier of [...DEFAULT_SUPPLIERS, ...registeredSuppliers, ...orderSuppliers]) {
+      const name = supplier?.trim();
+      if (name && !unique.has(name.toLocaleLowerCase())) unique.set(name.toLocaleLowerCase(), name);
+    }
+    return ['Svi', ...unique.values()];
+  }, [orders, registeredSuppliers]);
+
+  const dateFrom =
+    period.mode === 'range' ? period.from || '' : period.month ? `${period.month}-01` : '';
+  const dateTo =
+    period.mode === 'range'
+      ? period.to || ''
+      : period.month
+        ? `${period.month}-${String(new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)), 0).getDate()).padStart(2, '0')}`
+        : '';
 
   const filtered = useMemo(() => {
     let result = orders;
@@ -144,11 +227,39 @@ useEffect(() => {
     if (activeOnly) {
       result = result.filter((o) => o.status !== 'Zatvoren' && o.status !== 'Otkazan');
     }
+    if (dateFrom || dateTo) {
+      result = result.filter((order) => {
+        const date = orderFinanceDate(order);
+        return (!dateFrom || date >= dateFrom) && (!dateTo || date <= dateTo);
+      });
+    }
+    if (financeFilter === 'parts') {
+      result = result.filter((order) => order.parts.length > 0 && Number(order.partsTotal) > 0);
+    } else if (financeFilter === 'labor') {
+      result = result.filter((order) => Number(order.laborTotal) > 0);
+    }
     if (mechanicFilter !== 'Svi') {
       result = result.filter((o) => o.mechanic === mechanicFilter);
     }
+    if (supplierFilter !== 'Svi') {
+      const selectedSupplier = supplierFilter.toLocaleLowerCase();
+      result = result.filter(
+        (order) =>
+          order.supplier?.trim().toLocaleLowerCase() === selectedSupplier ||
+          order.parts.some(
+            (part) =>
+              (part.supplier?.trim() || DEFAULT_SUPPLIER).toLocaleLowerCase() === selectedSupplier
+          )
+      );
+    }
     if (sortKey) {
       result = [...result].sort((a, b) => {
+        if (sortKey === 'workDate') {
+          const av = sortableDate(a);
+          const bv = sortableDate(b);
+          return sortDir === 'asc' ? av - bv : bv - av;
+        }
+
         const av = a[sortKey as keyof WorkOrder];
         const bv = b[sortKey as keyof WorkOrder];
         if (typeof av === 'number' && typeof bv === 'number') {
@@ -160,7 +271,19 @@ useEffect(() => {
       });
     }
     return result;
-  }, [orders, search, statusFilter, activeOnly, mechanicFilter, sortKey, sortDir]);
+  }, [
+    orders,
+    search,
+    statusFilter,
+    activeOnly,
+    dateFrom,
+    dateTo,
+    financeFilter,
+    mechanicFilter,
+    supplierFilter,
+    sortKey,
+    sortDir,
+  ]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -210,7 +333,11 @@ useEffect(() => {
     if (!deleteId) return;
     setDeleteLoading(true);
     await new Promise((r) => setTimeout(r, 700));
-    setOrders((prev) => prev.filter((o) => o.id !== deleteId));
+    setOrders((prev) => {
+      const next = prev.filter((o) => o.id !== deleteId);
+      persistOrders(next);
+      return next;
+    });
     setSelectedIds((prev) => {
       const next = new Set(prev);
       next.delete(deleteId);
@@ -222,21 +349,43 @@ useEffect(() => {
   };
 
   const handleBulkDelete = async () => {
-    setOrders((prev) => prev.filter((o) => !selectedIds.has(o.id)));
+    setOrders((prev) => {
+      const next = prev.filter((o) => !selectedIds.has(o.id));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`${selectedIds.size} naloga obrisano`);
     setSelectedIds(new Set());
   };
 
   const handleSaveOrder = (order: WorkOrder) => {
     if (orders.find((o) => o.id === order.id)) {
-      setOrders((prev) => prev.map((o) => (o.id === order.id ? order : o)));
+      setOrders((prev) => {
+        const next = prev.map((o) => (o.id === order.id ? order : o));
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} ažuriran`);
     } else {
-      setOrders((prev) => [order, ...prev]);
+      setOrders((prev) => {
+        const next = [order, ...prev];
+        persistOrders(next);
+        return next;
+      });
       toast.success(`Radni nalog ${order.orderNum} kreiran`);
     }
     setCreateOpen(false);
     setEditOrder(null);
+  };
+
+  const handleRemoveOrderImage = (image: 'estimateImage' | 'registrationImage') => {
+    if (!viewOrder) return;
+    const updatedOrder = { ...viewOrder, [image]: undefined };
+    const next = orders.map((item) => (item.id === viewOrder.id ? updatedOrder : item));
+    setOrders(next);
+    setViewOrder(updatedOrder);
+    persistOrders(next);
+    toast.success('Slika je obrisana sa naloga');
   };
 
   const handleStatusChange = (id: string, newStatus: OrderStatus) => {
@@ -245,7 +394,11 @@ useEffect(() => {
       setCompletingOrder(order);
       return;
     }
-    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o)));
+    setOrders((prev) => {
+      const next = prev.map((o) => (o.id === id ? { ...o, status: newStatus } : o));
+      persistOrders(next);
+      return next;
+    });
     toast.success(`Status ažuriran na "${newStatus}"`);
   };
 
@@ -256,26 +409,31 @@ useEffect(() => {
       const discountPct = part.category === 'oil' ? oilDiscountPct : partsDiscountPct;
       return total + lineTotal * (1 - discountPct / 100);
     }, 0);
-    const serviceProfit =
-      completingOrder.orderTotal - partsPurchaseCost - completingOrder.mechanicPayout;
-    const updatedOrder: WorkOrder = {
+    const updatedOrderBase: WorkOrder = {
       ...completingOrder,
       status: 'Zatvoren',
       supplierPartsDiscountPct: partsDiscountPct,
       supplierOilDiscountPct: oilDiscountPct,
       partsPurchaseCost,
-      serviceProfit,
       updatedAt: new Date().toISOString().split('T')[0],
     };
-    setOrders((prev) => prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order)));
+    const updatedOrder: WorkOrder = {
+      ...updatedOrderBase,
+      serviceProfit: orderServiceProfit(updatedOrderBase),
+    };
+    setOrders((prev) => {
+      const next = prev.map((order) => (order.id === updatedOrder.id ? updatedOrder : order));
+      persistOrders(next);
+      return next;
+    });
     setCompletingOrder(null);
     toast.success(`Nalog ${updatedOrder.orderNum} završen i obračunat`);
   };
 
   return (
-    <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto">
+    <div className="min-w-0 px-3 py-6 sm:px-6 lg:px-8 xl:px-10 max-w-screen-2xl mx-auto">
       {/* Zaglavlje */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-foreground">Radni nalozi</h1>
           <p className="text-sm text-muted-foreground mt-1">
@@ -284,20 +442,22 @@ useEffect(() => {
             aktivnih
           </p>
         </div>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 active:scale-95 transition-all duration-150 shadow-card"
-        >
-          <Plus size={16} />
-          Novi radni nalog
-        </button>
       </div>
 
-      {/* Traka filtera */}
+      {/* Period i traka filtera */}
+      <div className="mb-3">
+        <FinancePeriodPicker
+          period={period}
+          onChange={(next) => {
+            setPeriod(next);
+            setPage(1);
+          }}
+        />
+      </div>
       <div className="bg-card border border-border rounded-xl shadow-card mb-4">
-        <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
+        <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
           {/* Pretraga */}
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative min-w-0 w-full sm:min-w-[200px] sm:flex-1">
             <Search
               size={15}
               className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
@@ -315,7 +475,7 @@ useEffect(() => {
           </div>
 
           {/* Filter statusa */}
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex w-full flex-wrap items-center gap-1.5">
             {(['Svi', ...ALL_STATUSES] as const).map((s) => (
               <button
                 key={`filter-status-${s}`}
@@ -335,27 +495,56 @@ useEffect(() => {
             ))}
           </div>
 
-          {/* Filter majstora */}
-          <select
-            value={mechanicFilter}
-            onChange={(e) => {
-              setMechanicFilter(e.target.value);
-              setPage(1);
-            }}
-            className="px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
-          >
-            {mechanicFilterOptions.map((m) => (
-              <option key={`mech-filter-${m}`} value={m}>
-                {m === 'Svi' ? 'Svi majstori' : m}
-              </option>
-            ))}
-          </select>
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
+            {/* Filter majstora */}
+            <select
+              value={mechanicFilter}
+              onChange={(e) => {
+                setMechanicFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full min-w-0 px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground sm:w-auto"
+              aria-label="Filtriraj po majstoru"
+            >
+              {mechanicFilterOptions.map((m) => (
+                <option key={`mech-filter-${m}`} value={m}>
+                  {m === 'Svi' ? 'Svi majstori' : m}
+                </option>
+              ))}
+            </select>
+            {/* Filter dobavljača */}
+            <select
+              value={supplierFilter}
+              onChange={(e) => {
+                setSupplierFilter(e.target.value);
+                setPage(1);
+              }}
+              className="w-full min-w-0 px-3 py-2 text-sm bg-muted border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-ring text-foreground sm:w-auto"
+              aria-label="Filtriraj po dobavljaču"
+            >
+              {supplierFilterOptions.map((supplier) => (
+                <option key={`supplier-filter-${supplier}`} value={supplier}>
+                  {supplier === 'Svi' ? 'Svi dobavljači' : supplier}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
+      </div>
+
+      <div className="mb-4 flex justify-end">
+        <button
+          onClick={() => setCreateOpen(true)}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground shadow-card transition-all duration-150 hover:bg-primary/90 active:scale-95 sm:w-auto"
+        >
+          <Plus size={16} />
+          Novi radni nalog
+        </button>
       </div>
 
       {/* Traka za grupne akcije */}
       {selectedIds.size > 0 && (
-        <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 mb-4 flex items-center justify-between slide-up">
+        <div className="bg-primary/5 border border-primary/20 rounded-xl px-4 py-3 mb-4 flex flex-wrap items-center justify-between gap-2 slide-up">
           <div className="flex items-center gap-2">
             <CheckSquare size={16} className="text-primary" />
             <span className="text-sm font-medium text-primary">
@@ -397,6 +586,7 @@ useEffect(() => {
                 {(
                   [
                     { key: 'orderNum', label: 'Nalog #' },
+                    { key: 'workDate', label: 'Datum' },
                     { key: 'clientName', label: 'Klijent' },
                     { key: 'vehicle', label: 'Vozilo' },
                     { key: 'mechanic', label: 'Majstor' },
@@ -562,6 +752,7 @@ useEffect(() => {
             setViewOrder(null);
             handleStatusChange(viewOrder.id, 'Zatvoren');
           }}
+          onRemoveImage={handleRemoveOrderImage}
         />
       )}
 
@@ -615,7 +806,13 @@ function WorkOrderRow({
       }}
       tabIndex={0}
       className={`group transition-colors duration-100 ${
-        selected ? 'bg-primary/5' : 'hover:bg-muted/40'
+        selected
+          ? 'bg-primary/5'
+          : orderSupplierPaymentState(order, DEFAULT_SUPPLIER) === 'paid'
+            ? 'bg-emerald-50/80 hover:bg-emerald-100/70'
+            : orderSupplierPaymentState(order, DEFAULT_SUPPLIER) === 'partial'
+              ? 'bg-lime-50/70 hover:bg-lime-100/60'
+              : 'hover:bg-muted/40'
       } cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/40`}
     >
       <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
@@ -631,6 +828,9 @@ function WorkOrderRow({
         <span className="font-mono-data text-xs font-medium text-primary whitespace-nowrap">
           {order.orderNum}
         </span>
+      </td>
+      <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
+        {order.workDate || order.createdAt}
       </td>
       <td className="px-4 py-3">
         <p className="font-medium text-foreground text-sm leading-tight whitespace-nowrap">

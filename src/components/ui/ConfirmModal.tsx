@@ -54,9 +54,7 @@ export default function ConfirmModal({
         <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center shrink-0">
           <AlertTriangle size={20} className="text-red-600" />
         </div>
-        <p className="text-sm text-secondary-foreground leading-relaxed pt-2">
-          {description}
-        </p>
+        <p className="text-sm text-secondary-foreground leading-relaxed pt-2">{description}</p>
       </div>
     </Modal>
   );
