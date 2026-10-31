@@ -3,8 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import AppLayout from '@/components/AppLayout';
-import { ArrowRight, Building2, Plus } from 'lucide-react';
-import { SUPPLIER_PAYMENTS_STORAGE_KEY, SUPPLIERS_STORAGE_KEY, DEFAULT_SUPPLIERS, SupplierPaymentRecord } from '@/app/work-order-managment/data/mockWorkOrders';
+import { ArrowRight, Building2, Plus, Trash2 } from 'lucide-react';
+import { SUPPLIER_PAYMENTS_STORAGE_KEY, SUPPLIERS_STORAGE_KEY, DEFAULT_SUPPLIER, DEFAULT_SUPPLIERS, SupplierPaymentRecord } from '@/app/work-order-managment/data/mockWorkOrders';
 import { pull, readCache, subscribe, writeCache, push } from '@/lib/syncStore';
 
 const money = (value: number) => `${value.toLocaleString('bs-BA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} KM`;
@@ -37,6 +37,15 @@ export default function SuppliersPage() {
     setNewSupplier('');
   };
 
+  const removeSupplier = (supplier: string) => {
+    if (supplier.toLocaleLowerCase() === DEFAULT_SUPPLIER.toLocaleLowerCase()) return;
+    if (!window.confirm(`Obrisati dobavljača ${supplier}?`)) return;
+    const next = suppliers.filter((item) => item !== supplier);
+    setSuppliers(next);
+    writeCache(SUPPLIERS_STORAGE_KEY, next);
+    void push(SUPPLIERS_STORAGE_KEY, next);
+  };
+
   const motorexPayments = payments.filter((payment) => payment.supplier === 'Motorex');
   const paidTotal = motorexPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
 
@@ -56,12 +65,30 @@ export default function SuppliersPage() {
           {suppliers.map((supplier) => {
             const supplierPayments = payments.filter((payment) => payment.supplier === supplier);
             const supplierPaidTotal = supplierPayments.reduce((sum, payment) => sum + Number(payment.amount || 0), 0);
-            const href = supplier === 'Motorex' ? '/dobavljaci/motorex' : `/dobavljaci/${encodeURIComponent(supplier.toLowerCase().replace(/\s+/g, '-'))}`;
+            const isDefaultSupplier = supplier.toLocaleLowerCase() === DEFAULT_SUPPLIER.toLocaleLowerCase();
+            const href = isDefaultSupplier ? '/dobavljaci/motorex' : `/dobavljaci/${encodeURIComponent(supplier.toLowerCase().replace(/\s+/g, '-'))}`;
             return (
-              <Link key={supplier} href={href} className="group block rounded-xl border border-border bg-card p-5 shadow-card transition hover:border-primary/30 hover:shadow-card-hover">
-                <div className="flex items-start justify-between gap-4"><div className="flex items-center gap-3"><div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary"><Building2 size={21} /></div><div><h2 className="font-semibold text-foreground">{supplier}</h2><p className="mt-0.5 text-xs text-muted-foreground">{supplierPayments.length} zbirnih uplata</p></div></div><ArrowRight size={18} /></div>
-                <div className="mt-5 grid grid-cols-2 gap-3"><div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Ukupno plaćeno</p><p className="mt-1 font-bold tabular-nums">{money(supplierPaidTotal)}</p></div><div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Zadnja uplata</p><p className="mt-1 font-bold">{supplierPayments[0]?.paidAt?.slice(0, 10) || '—'}</p></div></div>
-              </Link>
+              <div key={supplier} className="group min-w-0 rounded-xl border border-border bg-card p-3 shadow-card transition hover:border-primary/30 hover:shadow-card-hover sm:p-5">
+                <div className="flex min-w-0 items-start justify-between gap-2">
+                  <Link href={href} className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Building2 size={21} /></div>
+                    <div className="min-w-0 flex-1">
+                      <h2 className="break-words font-semibold text-foreground">{supplier}</h2>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{supplierPayments.length} zbirnih uplata</p>
+                    </div>
+                    <ArrowRight size={18} className="mt-1 shrink-0" />
+                  </Link>
+                  {!isDefaultSupplier && (
+                    <button type="button" onClick={() => removeSupplier(supplier)} aria-label={`Obriši dobavljača ${supplier}`} title="Obriši dobavljača" className="shrink-0 rounded-lg p-2 text-muted-foreground hover:bg-red-50 hover:text-red-600">
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3">
+                  <div className="min-w-0 rounded-lg bg-muted/40 p-2 sm:p-3"><p className="text-xs text-muted-foreground">Ukupno plaćeno</p><p className="mt-1 break-words font-bold tabular-nums">{money(supplierPaidTotal)}</p></div>
+                  <div className="min-w-0 rounded-lg bg-muted/40 p-2 sm:p-3"><p className="text-xs text-muted-foreground">Zadnja uplata</p><p className="mt-1 break-words font-bold">{supplierPayments[0]?.paidAt?.slice(0, 10) || '—'}</p></div>
+                </div>
+              </div>
             );
           })}
         </div>

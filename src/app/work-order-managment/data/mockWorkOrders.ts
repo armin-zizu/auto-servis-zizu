@@ -48,6 +48,7 @@ export interface WorkOrder {
   updatedAt: string;
   supplierPartsDiscountPct?: number;
   supplierOilDiscountPct?: number;
+  supplier?: string;
   partsPurchaseCost?: number;
   serviceProfit?: number;
   estimateImage?: string;

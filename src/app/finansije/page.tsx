@@ -78,7 +78,7 @@ export default function FinancePage() {
 
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
+      <div className="min-w-0 px-3 py-6 sm:px-6 lg:px-8 xl:px-10 max-w-screen-2xl mx-auto space-y-6">
         <div>
           <Link href="/" className="text-xs text-primary hover:underline">
             Dashboard
@@ -89,7 +89,7 @@ export default function FinancePage() {
 
         <FinancePeriodPicker period={period} onChange={setPeriod} />
 
-        <div className="flex items-center justify-between gap-3 px-1">
+        <div className="flex flex-col gap-1 px-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
           <h2 className="font-semibold text-foreground">Finansijski pregled · {finance.closedOrders} zatvorenih naloga</h2>
           <span className="text-xs text-muted-foreground">{periodLabel}</span>
         </div>

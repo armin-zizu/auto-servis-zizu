@@ -72,7 +72,7 @@ export default function ClientsPage() {
 
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
+      <div className="min-w-0 px-3 sm:px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
         <div>
           <Link href="/" className="text-xs text-primary hover:underline">
             Dashboard
@@ -81,13 +81,13 @@ export default function ClientsPage() {
           <p className="text-sm text-muted-foreground mt-1">Pregled klijenata i njihovih vozila</p>
         </div>
         <div className="bg-card border border-border rounded-xl shadow-card overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center gap-3">
+          <div className="min-w-0 px-3 py-4 border-b border-border flex items-center gap-3 sm:px-5">
             <Search size={16} className="text-muted-foreground" />
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder="Pretraži klijente..."
-              className="flex-1 text-sm bg-transparent focus:outline-none"
+              className="min-w-0 flex-1 text-sm bg-transparent focus:outline-none"
               aria-label="Pretraži klijente"
             />
           </div>
@@ -102,7 +102,7 @@ export default function ClientsPage() {
                   type="button"
                   key={client.name}
                   onClick={() => setSelectedClient(client)}
-                  className="w-full text-left px-5 py-4 flex items-center justify-between gap-4 hover:bg-muted/30 focus:outline-none focus:bg-muted/40 transition-colors cursor-pointer"
+                  className="w-full min-w-0 text-left px-3 py-4 sm:px-5 flex items-center justify-between gap-2 sm:gap-4 hover:bg-muted/30 focus:outline-none focus:bg-muted/40 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
@@ -117,10 +117,10 @@ export default function ClientsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="min-w-0 max-w-[45%] text-right shrink-0">
                     {client.vehicle && (
-                      <p className="text-sm text-foreground flex items-center gap-1 justify-end">
-                        <Car size={13} className="text-muted-foreground" /> {client.vehicle}
+                      <p className="truncate text-sm text-foreground flex items-center gap-1 justify-end">
+                        <Car size={13} className="text-muted-foreground shrink-0" /> <span className="truncate">{client.vehicle}</span>
                       </p>
                     )}
                     <p className="text-xs text-muted-foreground mt-1">
@@ -164,16 +164,16 @@ export default function ClientsPage() {
                   onClick={() =>
                     router.push(`/work-order-managment?order=${encodeURIComponent(order.id)}`)
                   }
-                  className="w-full text-left p-4 bg-muted/30 border border-border rounded-lg flex items-center justify-between gap-4 hover:bg-muted transition-colors cursor-pointer"
+                  className="w-full min-w-0 text-left p-3 sm:p-4 bg-muted/30 border border-border rounded-lg flex items-center justify-between gap-2 sm:gap-4 hover:bg-muted transition-colors cursor-pointer"
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm font-semibold text-primary">{order.orderNum}</p>
                     <p className="text-sm text-foreground mt-1">{order.vehicle}</p>
                     <p className="text-xs text-muted-foreground mt-1">
                       {order.createdAt} · {order.status}
                     </p>
                   </div>
-                  <p className="text-sm font-bold text-foreground tabular-nums">
+                  <p className="shrink-0 text-sm font-bold text-foreground tabular-nums">
                     {order.orderTotal.toFixed(2)} KM
                   </p>
                 </button>

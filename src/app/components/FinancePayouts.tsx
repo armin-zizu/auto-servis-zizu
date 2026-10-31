@@ -73,7 +73,7 @@ export default function FinancePayouts({ period }: { period: PeriodFilter }) {
           Isplata se prikazuje samo kada je ovdje ručno unesete. Nema automatske plate ni bonusa.
         </p>
       </div>
-      <form onSubmit={addPayout} className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end border-b border-border">
+      <form onSubmit={addPayout} className="min-w-0 px-3 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 items-end border-b border-border sm:px-5">
         <label className="text-xs font-medium text-foreground">
           Majstor
           <input list="finance-mechanics-list" value={name} onChange={(event) => setName(event.target.value)} required className="mt-1 w-full px-3 py-2 text-sm bg-background border border-input rounded-lg" />

@@ -115,8 +115,8 @@ export default function MechanicsPage() {
 
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
-        <div className="flex items-start justify-between">
+      <div className="min-w-0 px-3 sm:px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
+        <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
           <div>
             <Link href="/" className="text-xs text-primary hover:underline">
               Dashboard
@@ -129,7 +129,7 @@ export default function MechanicsPage() {
           </div>
           <Link
             href="/majstori/isplate"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90"
+            className="inline-flex w-full items-center justify-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-lg hover:bg-primary/90 sm:w-auto"
           >
             Isplate <ArrowRight size={15} />
           </Link>

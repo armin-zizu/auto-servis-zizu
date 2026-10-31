@@ -23,7 +23,7 @@ export default function RecentOrdersTable() {
 
   return (
     <div className="bg-card border border-border rounded-xl shadow-card">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-4 border-b border-border sm:px-5">
         <div>
           <h3 className="text-base font-semibold text-foreground">Nedavni radni nalozi</h3>
           <p className="text-xs text-muted-foreground mt-0.5">

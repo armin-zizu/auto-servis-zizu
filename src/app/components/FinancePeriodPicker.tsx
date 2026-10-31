@@ -68,32 +68,32 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
   const [showRange, setShowRange] = useState(period.mode === 'range');
 
   const inputClass =
-    'px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring';
+    'min-w-0 max-w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring';
 
   return (
-    <div className="bg-card border border-border rounded-xl shadow-card p-4 flex flex-wrap items-center gap-3">
+    <div className="min-w-0 bg-card border border-border rounded-xl shadow-card p-3 sm:p-4 flex flex-wrap items-center gap-2 sm:gap-3">
       <CalendarDays size={18} className="text-primary shrink-0" />
 
       {/* Quick presets */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5">
         <button
           type="button"
           onClick={() => onChange({ mode: 'range', ...currentWeekRange() })}
-          className="px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+          className="px-2 sm:px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
         >
           Ova sedmica
         </button>
         <button
           type="button"
           onClick={() => onChange({ mode: 'range', ...lastDaysRange(15) })}
-          className="px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+          className="px-2 sm:px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
         >
           Zadnjih 15 dana
         </button>
         <button
           type="button"
           onClick={() => onChange({ mode: 'range', ...lastDaysRange(30) })}
-          className="px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
+          className="px-2 sm:px-3 py-2 text-xs font-medium rounded-lg border border-border bg-card hover:bg-muted transition-colors"
         >
           Zadnjih 30 dana
         </button>

@@ -86,7 +86,7 @@ export default function SignupForm({ onSwitchToLogin }: SignupFormProps) {
           <label className="block text-sm font-medium text-foreground mb-2">
             Ja sam…
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3">
             {(['owner', 'mechanic'] as const).map((r) => (
               <label
                 key={`role-${r}`}

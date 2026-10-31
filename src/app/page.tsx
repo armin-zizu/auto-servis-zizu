@@ -11,7 +11,7 @@ import DashboardChartsRow from './components/DashboardChartsRow';
 export default function DashboardPage() {
   return (
     <AppLayout userRole="owner" userName="Armin Mujić" userEmail="armin@autoservis.com">
-      <div className="px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
+      <div className="min-w-0 px-3 sm:px-6 lg:px-8 xl:px-10 py-6 max-w-screen-2xl mx-auto space-y-6">
         {/* KPI Bento Grid */}
         <MetricsBentoGrid />
 
