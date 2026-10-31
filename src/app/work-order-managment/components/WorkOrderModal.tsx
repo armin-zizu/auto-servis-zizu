@@ -82,14 +82,14 @@ async function prepareRegistrationOcrImages(file: File): Promise<HTMLCanvasEleme
 }
 
 function findVinInOcrText(text: string): string | null {
-  const compact = text
-    .toUpperCase()
-    .replace(/[|]/g, '1')
-    .replace(/[^A-Z0-9]/g, '');
+  const lines = text.toUpperCase().split(/\r?\n/);
   const candidates: string[] = [];
-  for (let index = 0; index <= compact.length - 17; index += 1) {
-    const candidate = compact.slice(index, index + 17);
-    if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.push(candidate);
+  for (const line of lines) {
+    const compact = line.replace(/[|]/g, '1').replace(/[^A-Z0-9]/g, '');
+    for (let index = 0; index <= compact.length - 17; index += 1) {
+      const candidate = compact.slice(index, index + 17);
+      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.push(candidate);
+    }
   }
   return candidates.find((candidate) => candidate.startsWith('WVW')) ?? candidates[0] ?? null;
 }
@@ -828,12 +828,29 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 </label>
                 <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/60">
                   <Camera size={14} />
-                  Saobraćajna
+                  Slikaj saobraćajnu
                   <input
                     type="file"
                     accept="image/*"
                     capture="environment"
                     className="sr-only"
+                    disabled={readingRegistration}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      void handleRegistrationUpload(file);
+                      event.currentTarget.value = '';
+                    }}
+                  />
+                </label>
+                <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-muted/60">
+                  <Upload size={14} />
+                  Izaberi sliku
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    disabled={readingRegistration}
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (!file) return;
@@ -1060,9 +1077,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <label className="mb-1 block text-xs text-muted-foreground">Količina</label>
                       <input
                         type="number"
-                        inputMode="numeric"
-                        min={1}
-                        step={1}
+                        inputMode="decimal"
+                        min={0.01}
+                        step="any"
                         {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 1 })}
                         className="w-full appearance-none px-3 py-2 text-sm bg-background border border-input rounded-md text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
@@ -1199,12 +1216,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                       <td className="px-3 py-2">
                         <input
                           type="number"
-                          inputMode="numeric"
-                          min={1}
-                          step={1}
+                          inputMode="decimal"
+                          min={0.01}
+                          step="any"
                           {...register(`parts.${idx}.qty`, {
                             valueAsNumber: true,
-                            min: 1,
+                            min: 0.01,
                           })}
                           className="w-full appearance-none px-2 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                         />

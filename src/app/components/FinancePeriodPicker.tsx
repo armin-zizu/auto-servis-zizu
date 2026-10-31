@@ -113,27 +113,27 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
           ))}
         </select>
       ) : (
-        <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:w-auto sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-end sm:gap-2">
-          <label className="min-w-0 text-xs text-muted-foreground">Od
+        <div className="grid w-full min-w-0 grid-cols-1 gap-2 sm:w-auto sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-end sm:gap-2">
+          <label className="block min-w-0 rounded-lg border border-border bg-background p-2 text-xs text-muted-foreground">Od
             <input
               type="date"
               value={period.from || ''}
               onChange={(event) =>
                 onChange({ mode: 'range', from: event.target.value, to: period.to })
               }
-              className={`${inputClass} mt-1 block w-full`}
+              className={`${inputClass} mt-1 block box-border w-full`}
               aria-label="Od datuma"
             />
           </label>
           <span className="hidden pb-2 text-sm text-muted-foreground sm:block">do</span>
-          <label className="min-w-0 text-xs text-muted-foreground">Do
+          <label className="block min-w-0 rounded-lg border border-border bg-background p-2 text-xs text-muted-foreground">Do
             <input
               type="date"
               value={period.to || ''}
               onChange={(event) =>
                 onChange({ mode: 'range', from: period.from, to: event.target.value })
               }
-              className={`${inputClass} mt-1 block w-full`}
+              className={`${inputClass} mt-1 block box-border w-full`}
               aria-label="Do datuma"
             />
           </label>
