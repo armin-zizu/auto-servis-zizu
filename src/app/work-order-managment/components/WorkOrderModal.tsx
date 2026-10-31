@@ -60,6 +60,40 @@ async function prepareEstimateOcrImage(file: File): Promise<HTMLCanvasElement> {
   return canvas;
 }
 
+async function prepareRegistrationOcrImages(file: File): Promise<HTMLCanvasElement[]> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(2, 2400 / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const images = [0, 90, 180, 270].map((degrees) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = degrees % 180 === 0 ? width : height;
+    canvas.height = degrees % 180 === 0 ? height : width;
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas nije dostupan za obradu saobraćajne');
+    context.filter = 'grayscale(1) contrast(1.5)';
+    context.translate(canvas.width / 2, canvas.height / 2);
+    context.rotate((degrees * Math.PI) / 180);
+    context.drawImage(bitmap, -width / 2, -height / 2, width, height);
+    return canvas;
+  });
+  bitmap.close();
+  return images;
+}
+
+function findVinInOcrText(text: string): string | null {
+  const compact = text
+    .toUpperCase()
+    .replace(/[|]/g, '1')
+    .replace(/[^A-Z0-9]/g, '');
+  const candidates: string[] = [];
+  for (let index = 0; index <= compact.length - 17; index += 1) {
+    const candidate = compact.slice(index, index + 17);
+    if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.push(candidate);
+  }
+  return candidates.find((candidate) => candidate.startsWith('WVW')) ?? candidates[0] ?? null;
+}
+
 const STATUSES: OrderStatus[] = [
   'Otvoren',
   'U toku',
@@ -100,6 +134,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   const [registrationImage, setRegistrationImage] = useState('');
   const [estimateParts, setEstimateParts] = useState<PartLineItem[]>([]);
   const [readingEstimate, setReadingEstimate] = useState(false);
+  const [readingRegistration, setReadingRegistration] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
   const [estimateMessage, setEstimateMessage] = useState('');
   const [savedClientOrders, setSavedClientOrders] = useState<WorkOrder[]>([]);
@@ -317,6 +352,61 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         }
       }
       setReadingEstimate(false);
+    }
+  };
+
+  const handleRegistrationUpload = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      setEstimateMessage('Odaberite fotografiju ili sliku saobraćajne dozvole.');
+      return;
+    }
+    if (file.size > 12 * 1024 * 1024) {
+      setEstimateMessage('Slika je prevelika. Maksimalna veličina je 12 MB.');
+      return;
+    }
+
+    setReadingRegistration(true);
+    setOcrProgress(0);
+    setEstimateMessage('Čuvam saobraćajnu i prepoznajem VIN…');
+    let worker: Tesseract.Worker | null = null;
+    try {
+      const [savedImage, ocrImages] = await Promise.all([
+        compressEstimateImage(file),
+        prepareRegistrationOcrImages(file),
+      ]);
+      setRegistrationImage(savedImage);
+      worker = await Tesseract.createWorker('eng', undefined, {
+        logger: (message) => {
+          if (message.status === 'recognizing text') {
+            setOcrProgress(Math.round(message.progress * 100));
+          }
+        },
+      });
+
+      let vin: string | null = null;
+      for (let index = 0; index < ocrImages.length && !vin; index += 1) {
+        const result = await worker.recognize(ocrImages[index]);
+        vin = findVinInOcrText(result.data.text);
+      }
+      if (vin) {
+        setValue('vehicleVin', vin, { shouldDirty: true, shouldValidate: true });
+        setEstimateMessage(`Prepoznat VIN: ${vin}. Provjerite da li je tačno pročitan.`);
+      } else {
+        setEstimateMessage('Saobraćajna je sačuvana, ali VIN nije jasno prepoznat. Unesite ga ručno u polje VIN.');
+      }
+    } catch (error) {
+      console.error('OCR saobraćajne nije uspio:', error);
+      setEstimateMessage('Saobraćajna je dodana, ali prepoznavanje VIN-a nije uspjelo. Unesite VIN ručno.');
+    } finally {
+      if (worker) {
+        try {
+          await worker.terminate();
+        } catch (error) {
+          console.warn('OCR worker nije zatvoren:', error);
+        }
+      }
+      setReadingRegistration(false);
     }
   };
 
@@ -747,9 +837,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                     onChange={(event) => {
                       const file = event.target.files?.[0];
                       if (!file) return;
-                      void compressEstimateImage(file)
-                        .then((savedImage) => setRegistrationImage(savedImage))
-                        .catch(() => setEstimateMessage('Saobraćajna se ne može učitati.'));
+                      void handleRegistrationUpload(file);
                       event.currentTarget.value = '';
                     }}
                   />
@@ -803,13 +891,13 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </div>
             )}
 
-            {readingEstimate && (
+            {(readingEstimate || readingRegistration) && (
               <p className="mt-3 flex items-center gap-2 text-xs text-primary">
                 <Loader2 size={14} className="animate-spin" />
-                Prepoznavanje predračuna… {ocrProgress}%
+                {readingRegistration ? 'Prepoznavanje VIN-a sa saobraćajne…' : 'Prepoznavanje predračuna…'} {ocrProgress}%
               </p>
             )}
-            {estimateMessage && !readingEstimate && (
+            {estimateMessage && !readingEstimate && !readingRegistration && (
               <p className="mt-3 text-xs text-muted-foreground">{estimateMessage}</p>
             )}
 
