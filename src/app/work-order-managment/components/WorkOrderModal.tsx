@@ -461,7 +461,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               <input
                 type="date"
                 {...register('workDate')}
-                className="block w-full min-w-0 px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
+                className="block w-full min-w-0 max-w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring"
               />
             </div>
             <div className="relative min-w-0">

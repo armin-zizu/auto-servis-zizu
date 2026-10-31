@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { CalendarDays } from 'lucide-react';
 import { PeriodFilter } from '@/lib/financeData';
 
@@ -65,7 +65,7 @@ interface FinancePeriodPickerProps {
 /** Month selector + custom date-range picker for finance pages. */
 export default function FinancePeriodPicker({ period, onChange }: FinancePeriodPickerProps) {
   const months = useMemo(() => lastMonths(12), []);
-  const [showRange, setShowRange] = useState(period.mode === 'range');
+  const showRange = period.mode === 'range';
 
   const inputClass =
     'min-w-0 max-w-full px-3 py-2 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring';
@@ -113,34 +113,46 @@ export default function FinancePeriodPicker({ period, onChange }: FinancePeriodP
           ))}
         </select>
       ) : (
-        <>
-          <input
-            type="date"
-            value={period.from || ''}
-            onChange={(event) =>
-              onChange({ mode: 'range', from: event.target.value, to: period.to })
-            }
-            className={inputClass}
-            aria-label="Od datuma"
-          />
-          <span className="text-sm text-muted-foreground">do</span>
-          <input
-            type="date"
-            value={period.to || ''}
-            onChange={(event) =>
-              onChange({ mode: 'range', from: period.from, to: event.target.value })
-            }
-            className={inputClass}
-            aria-label="Do datuma"
-          />
-        </>
+        <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:w-auto sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-end sm:gap-2">
+          <label className="min-w-0 text-xs text-muted-foreground">Od
+            <input
+              type="date"
+              value={period.from || ''}
+              onChange={(event) =>
+                onChange({ mode: 'range', from: event.target.value, to: period.to })
+              }
+              className={`${inputClass} mt-1 block w-full`}
+              aria-label="Od datuma"
+            />
+          </label>
+          <span className="hidden pb-2 text-sm text-muted-foreground sm:block">do</span>
+          <label className="min-w-0 text-xs text-muted-foreground">Do
+            <input
+              type="date"
+              value={period.to || ''}
+              onChange={(event) =>
+                onChange({ mode: 'range', from: period.from, to: event.target.value })
+              }
+              className={`${inputClass} mt-1 block w-full`}
+              aria-label="Do datuma"
+            />
+          </label>
+        </div>
       )}
 
       <button
         type="button"
         onClick={() => {
-          setShowRange(!showRange);
-          if (!showRange) onChange({ mode: 'month', month: months[0] });
+          if (showRange) {
+            onChange({ mode: 'month', month: months[0] });
+          } else {
+            const today = new Date();
+            onChange({
+              mode: 'range',
+              from: toIso(new Date(today.getFullYear(), today.getMonth(), 1)),
+              to: toIso(today),
+            });
+          }
         }}
         className="text-xs font-medium text-primary hover:underline ml-auto"
       >

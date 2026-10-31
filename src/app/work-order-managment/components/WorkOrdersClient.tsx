@@ -19,6 +19,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import WorkOrderModal from './WorkOrderModal';
 import WorkOrderViewModal from './WorkOrderViewModal';
 import CompleteWorkOrderModal from './CompleteWorkOrderModal';
+import FinancePeriodPicker from '@/app/components/FinancePeriodPicker';
 import { toast } from 'sonner';
 import {
   ORDERS_STORAGE_KEY,
@@ -31,6 +32,7 @@ import {
 import { activeMechanicNames, useMechanics } from '@/lib/mechanics';
 import { readCache, writeCache, subscribe, push, pull } from '@/lib/syncStore';
 import { orderFinanceDate, orderServiceProfit } from '@/lib/financeData';
+import { PeriodFilter } from '@/lib/financeData';
 import { orderSupplierPaymentState } from '@/lib/supplierPayments';
 
 const PAGE_SIZE_OPTIONS = [10, 20, 50];
@@ -99,8 +101,10 @@ export default function WorkOrdersClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
-  const [dateFrom, setDateFrom] = useState('');
-  const [dateTo, setDateTo] = useState('');
+  const [period, setPeriod] = useState<PeriodFilter>({
+    mode: 'month',
+    month: new Date().toISOString().slice(0, 7),
+  });
   const [financeFilter, setFinanceFilter] = useState('');
   // Becomes true once the initial pull from Supabase has resolved. Until then
   // persistOrders is a no-op so a stale/empty local list can never overwrite
@@ -159,8 +163,13 @@ export default function WorkOrdersClient() {
     } else {
       setStatusFilter('Svi');
     }
-    setDateFrom(searchParams.get('from') || '');
-    setDateTo(searchParams.get('to') || '');
+    const from = searchParams.get('from') || '';
+    const to = searchParams.get('to') || '';
+    if (from || to) {
+      setPeriod({ mode: 'range', from, to });
+    } else {
+      setPeriod({ mode: 'month', month: searchParams.get('month') || new Date().toISOString().slice(0, 7) });
+    }
     setFinanceFilter(searchParams.get('finance') || '');
   }, [searchParams]);
 
@@ -187,6 +196,15 @@ export default function WorkOrdersClient() {
     }
     return ['Svi', ...unique.values()];
   }, [orders, registeredSuppliers]);
+
+  const dateFrom = period.mode === 'range'
+    ? period.from || ''
+    : period.month ? `${period.month}-01` : '';
+  const dateTo = period.mode === 'range'
+    ? period.to || ''
+    : period.month
+      ? `${period.month}-${String(new Date(Number(period.month.slice(0, 4)), Number(period.month.slice(5, 7)), 0).getDate()).padStart(2, '0')}`
+      : '';
 
   const filtered = useMemo(() => {
     let result = orders;
@@ -248,29 +266,6 @@ export default function WorkOrdersClient() {
     }
     return result;
   }, [orders, search, statusFilter, activeOnly, dateFrom, dateTo, financeFilter, mechanicFilter, supplierFilter, sortKey, sortDir]);
-
-  const localIsoDate = (date: Date) => {
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
-    return local.toISOString().slice(0, 10);
-  };
-  const setRecentRange = (days: number) => {
-    const to = new Date();
-    const from = new Date();
-    from.setDate(to.getDate() - days + 1);
-    setDateFrom(localIsoDate(from));
-    setDateTo(localIsoDate(to));
-    setFinanceFilter('');
-    setPage(1);
-  };
-  const setWeekRange = () => {
-    const to = new Date();
-    const from = new Date();
-    from.setDate(to.getDate() - ((to.getDay() + 6) % 7));
-    setDateFrom(localIsoDate(from));
-    setDateTo(localIsoDate(to));
-    setFinanceFilter('');
-    setPage(1);
-  };
 
   const totalPages = Math.ceil(filtered.length / pageSize);
   const paginated = filtered.slice((page - 1) * pageSize, page * pageSize);
@@ -431,26 +426,12 @@ export default function WorkOrdersClient() {
         </div>
       </div>
 
-      {/* Traka filtera */}
+      {/* Period i traka filtera */}
+      <div className="mb-3">
+        <FinancePeriodPicker period={period} onChange={(next) => { setPeriod(next); setPage(1); }} />
+      </div>
       <div className="bg-card border border-border rounded-xl shadow-card mb-4">
         <div className="flex flex-wrap items-center gap-3 px-3 py-3 sm:px-4">
-          <div className="w-full">
-            <p className="mb-1.5 text-xs font-medium text-muted-foreground">Period</p>
-            <div className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:gap-2">
-              <button type="button" onClick={setWeekRange} className="min-w-0 whitespace-nowrap rounded-full bg-muted px-1 py-1.5 text-[10px] font-medium tracking-tight hover:bg-secondary sm:px-3 sm:text-xs">Ova sedmica</button>
-              <button type="button" onClick={() => setRecentRange(15)} className="min-w-0 whitespace-nowrap rounded-full bg-muted px-1 py-1.5 text-[10px] font-medium tracking-tight hover:bg-secondary sm:px-3 sm:text-xs">Zadnjih 15 dana</button>
-              <button type="button" onClick={() => setRecentRange(30)} className="min-w-0 whitespace-nowrap rounded-full bg-muted px-1 py-1.5 text-[10px] font-medium tracking-tight hover:bg-secondary sm:px-3 sm:text-xs">Zadnjih 30 dana</button>
-            </div>
-          </div>
-          <div className="grid w-full grid-cols-2 gap-2">
-            <label className="min-w-0 text-xs text-muted-foreground">Od
-              <input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} className="mt-1 block h-9 w-full min-w-0 rounded-lg border border-input bg-background px-2 py-1 text-xs" />
-            </label>
-            <label className="min-w-0 text-xs text-muted-foreground">Do
-              <input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} className="mt-1 block h-9 w-full min-w-0 rounded-lg border border-input bg-background px-2 py-1 text-xs" />
-            </label>
-          </div>
-          {(dateFrom || dateTo) && <button type="button" onClick={() => { setDateFrom(''); setDateTo(''); setFinanceFilter(''); setPage(1); }} className="px-1 py-1 text-xs text-primary hover:underline">Očisti period</button>}
           {/* Pretraga */}
           <div className="relative min-w-0 w-full sm:min-w-[200px] sm:flex-1">
             <Search
