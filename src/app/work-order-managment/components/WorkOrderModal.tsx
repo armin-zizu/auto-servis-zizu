@@ -92,20 +92,20 @@ async function prepareRegistrationOcrImages(file: File): Promise<HTMLCanvasEleme
   return images;
 }
 
-function findVinInOcrText(text: string): string | null {
+function findVinCandidatesInOcrText(text: string): string[] {
   const lines = text.toUpperCase().split(/\r?\n/);
-  const candidates: string[] = [];
+  const candidates = new Set<string>();
   for (const line of lines) {
     const compact = line
-      .replace(/[|IL]/g, '1')
+      .replace(/[|]/g, '1')
       .replace(/[OQ]/g, '0')
       .replace(/[^A-Z0-9]/g, '');
     for (let index = 0; index <= compact.length - 17; index += 1) {
       const candidate = compact.slice(index, index + 17);
-      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.push(candidate);
+      if (/^[A-HJ-NPR-Z0-9]{17}$/.test(candidate)) candidates.add(candidate);
     }
   }
-  return candidates.find((candidate) => candidate.startsWith('WVW')) ?? candidates[0] ?? null;
+  return [...candidates];
 }
 
 function findVinLabelLines(page: Tesseract.Page) {
@@ -366,6 +366,9 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
   }, [open, order, reset, defaultMechanicName]);
 
   const watchedParts = watch('parts');
+  const vehicleYear = watch('vehicleYear');
+  const vehicleMake = watch('vehicleMake');
+  const vehicleModel = watch('vehicleModel');
   const watchedLabor = watch('laborEntries');
   const watchedDiscount = watch('discountPct');
 
@@ -459,28 +462,42 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         },
       });
 
-      let vin: string | null = null;
-      for (let index = 0; index < ocrImages.length && !vin; index += 1) {
+      const candidateScores = new Map<string, number>();
+      const addCandidates = (text: string, score: number) => {
+        for (const candidate of findVinCandidatesInOcrText(text)) {
+          candidateScores.set(candidate, (candidateScores.get(candidate) ?? 0) + score);
+          const normalizedMake = vehicleMake.toLocaleLowerCase().replace(/[^a-z]/g, '');
+          const wmiHints =
+            normalizedMake === 'vw' || normalizedMake.includes('volkswagen')
+              ? ['WVW', '3VW', '9BW']
+              : normalizedMake.includes('volvo')
+                ? ['YV1', 'YV4']
+                : [];
+          for (const prefix of wmiHints) {
+            if (!candidate.startsWith(prefix)) {
+              const hintedCandidate = `${prefix}${candidate.slice(3)}`;
+              candidateScores.set(
+                hintedCandidate,
+                (candidateScores.get(hintedCandidate) ?? 0) + Math.max(1, score - 4)
+              );
+            }
+          }
+        }
+      };
+      for (let index = 0; index < ocrImages.length; index += 1) {
         await worker.setParameters({
           tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
           tessedit_char_whitelist: '',
         });
         const result = await worker.recognize(ocrImages[index], {}, { blocks: true });
         const vinLines = findVinLabelLines(result.data);
-        vin =
-          vinLines
-            .map((line) => findVinInOcrText(line.text))
-            .find((candidate): candidate is string => Boolean(candidate)) ?? null;
-        if (!vin) {
-          const labeledTextLines = result.data.text
-            .split(/\r?\n/)
-            .filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line));
-          vin =
-            labeledTextLines
-              .map((line) => findVinInOcrText(line))
-              .find((candidate): candidate is string => Boolean(candidate)) ?? null;
-        }
-        if (!vin && vinLines.length) {
+        vinLines.forEach((line) => addCandidates(line.text, 5));
+        result.data.text
+          .split(/\r?\n/)
+          .filter((line) => /^\s*[([]?\s*E\s*[)\].:]?/i.test(line))
+          .forEach((line) => addCandidates(line, 4));
+        addCandidates(result.data.text, 1);
+        if (vinLines.length) {
           await worker.setParameters({
             tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE,
             tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
@@ -488,14 +505,51 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           for (const line of vinLines) {
             const row = cropRegistrationVinRow(ocrImages[index], line.bbox.y0, line.bbox.y1);
             const rowResult = await worker.recognize(row, {}, { blocks: false });
-            vin = findVinInOcrText(rowResult.data.text);
-            if (vin) break;
+            addCandidates(rowResult.data.text, 6);
           }
         }
       }
+      let vin: string | null = null;
+      const rankedCandidates = [...candidateScores.entries()]
+        .map(([candidate, score]) => ({ vin: candidate, score }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 4);
+      if (rankedCandidates.length) {
+        try {
+          const response = await fetch('/api/vin/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              candidates: rankedCandidates,
+              make: vehicleMake,
+              model: vehicleModel,
+              year: vehicleYear,
+            }),
+          });
+          if (response.ok) {
+            const data = (await response.json()) as {
+              results?: Array<{
+                vin: string;
+                score: number;
+                makeMatch: boolean;
+                modelMatch: boolean;
+              }>;
+            };
+            const verified = data.results
+              ?.filter((item) => item.makeMatch && item.modelMatch)
+              .sort((a, b) => b.score - a.score)[0];
+            if (verified) vin = verified.vin;
+          }
+        } catch {
+          // Use local OCR ranking if the online decoder is unavailable.
+        }
+      }
+      if (!vin && rankedCandidates.length) vin = rankedCandidates[0].vin;
       if (vin) {
         setValue('vehicleVin', vin, { shouldDirty: true, shouldValidate: true });
-        setEstimateMessage(`Prepoznat VIN: ${vin}. Provjerite da li je tačno pročitan.`);
+        setEstimateMessage(
+          `Prepoznat VIN: ${vin}. Provjerite ga na polju E saobraćajne; automatsko prepoznavanje može pogriješiti.`
+        );
       } else {
         setEstimateMessage(
           'Saobraćajna je sačuvana, ali VIN nije jasno prepoznat. Unesite ga ručno u polje VIN.'
