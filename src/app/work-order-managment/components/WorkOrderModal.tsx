@@ -293,12 +293,19 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
     remove: removeLabor,
   } = useFieldArray({ control, name: 'laborEntries' });
 
-  const partQuantityInputs = partFields.map((field, idx) => (
-    <input
-      key={`part-quantity-field-${field.id}`}
-      type="hidden"
-      {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 0.01 })}
-    />
+  const partFormFields = partFields.map((field, idx) => (
+    <React.Fragment key={`part-form-fields-${field.id}`}>
+      <input
+        type="hidden"
+        {...register(`parts.${idx}.name`, { required: 'Naziv dijela je obavezan' })}
+      />
+      <input type="hidden" {...register(`parts.${idx}.category`)} />
+      <input type="hidden" {...register(`parts.${idx}.qty`, { valueAsNumber: true, min: 0.01 })} />
+      <input
+        type="hidden"
+        {...register(`parts.${idx}.unitCost`, { valueAsNumber: true, min: 0 })}
+      />
+    </React.Fragment>
   ));
 
   useEffect(() => {
@@ -713,7 +720,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         onSubmit={handleSubmit(onSubmit)}
         className="min-w-0 max-w-full overflow-x-hidden space-y-4 sm:space-y-7"
       >
-        {partQuantityInputs}
+        {partFormFields}
         {/* Sekcija 1: Klijent */}
         <section>
           <h3 className="text-sm font-semibold text-foreground mb-3 sm:mb-4 flex items-center gap-2">
@@ -1378,7 +1385,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                 >
                   <div className="grid grid-cols-2 gap-2">
                     <select
-                      {...register(`parts.${idx}.category`)}
+                      value={watchedParts[idx]?.category ?? 'part'}
+                      onChange={(event) =>
+                        setValue(`parts.${idx}.category`, event.target.value as 'part' | 'oil', {
+                          shouldDirty: true,
+                        })
+                      }
                       className="px-2 py-2 text-sm bg-background border border-input rounded-md"
                       aria-label="Kategorija stavke"
                     >
@@ -1398,7 +1410,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                   <input
                     type="text"
                     placeholder="Naziv dijela ili opis"
-                    {...register(`parts.${idx}.name`, { required: 'Naziv dijela je obavezan' })}
+                    value={watchedParts[idx]?.name ?? ''}
+                    onChange={(event) =>
+                      setValue(`parts.${idx}.name`, event.target.value, { shouldDirty: true })
+                    }
                     className="w-full px-3 py-2 text-sm bg-background border border-input rounded-md"
                   />
                   {errors.parts?.[idx]?.name && (
@@ -1431,7 +1446,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         inputMode="decimal"
                         min={0}
                         step={0.01}
-                        {...register(`parts.${idx}.unitCost`, { valueAsNumber: true, min: 0 })}
+                        value={watchedParts[idx]?.unitCost ?? ''}
+                        onChange={(event) =>
+                          setValue(`parts.${idx}.unitCost`, Number(event.target.value) || 0, {
+                            shouldDirty: true,
+                          })
+                        }
                         className="w-full appearance-none px-3 py-2 text-sm bg-background border border-input rounded-md text-right [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                       />
                     </div>
@@ -1472,7 +1492,14 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                     <tr key={field.id} className="hover:bg-muted/20">
                       <td className="px-3 py-2">
                         <select
-                          {...register(`parts.${idx}.category`)}
+                          value={watchedParts[idx]?.category ?? 'part'}
+                          onChange={(event) =>
+                            setValue(
+                              `parts.${idx}.category`,
+                              event.target.value as 'part' | 'oil',
+                              { shouldDirty: true }
+                            )
+                          }
                           className="mb-1 w-full px-2 py-1 text-xs bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
                           aria-label="Kategorija stavke"
                         >
@@ -1482,9 +1509,10 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                         <input
                           type="text"
                           placeholder="npr. Filter ulja"
-                          {...register(`parts.${idx}.name`, {
-                            required: 'Naziv dijela je obavezan',
-                          })}
+                          value={watchedParts[idx]?.name ?? ''}
+                          onChange={(event) =>
+                            setValue(`parts.${idx}.name`, event.target.value, { shouldDirty: true })
+                          }
                           className="w-full min-w-[250px] px-2 py-2 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring placeholder:text-muted-foreground"
                         />
                         <label className="inline-flex items-center gap-1.5 mt-1 text-xs text-primary cursor-pointer">
@@ -1582,10 +1610,12 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                             inputMode="decimal"
                             min={0}
                             step={0.01}
-                            {...register(`parts.${idx}.unitCost`, {
-                              valueAsNumber: true,
-                              min: 0,
-                            })}
+                            value={watchedParts[idx]?.unitCost ?? ''}
+                            onChange={(event) =>
+                              setValue(`parts.${idx}.unitCost`, Number(event.target.value) || 0, {
+                                shouldDirty: true,
+                              })
+                            }
                             className="w-full appearance-none pl-2 pr-8 py-1.5 text-sm bg-background border border-input rounded-md focus:outline-none focus:ring-1 focus:ring-ring text-right tabular-nums [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                           />
                         </div>

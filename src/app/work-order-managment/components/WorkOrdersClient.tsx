@@ -101,8 +101,9 @@ export default function WorkOrdersClient() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [activeOnly, setActiveOnly] = useState(false);
   const [period, setPeriod] = useState<PeriodFilter>({
-    mode: 'month',
-    month: new Date().toISOString().slice(0, 7),
+    mode: 'range',
+    from: '',
+    to: '',
   });
   const [financeFilter, setFinanceFilter] = useState('');
   // Becomes true once the initial pull from Supabase has resolved. Until then
@@ -166,11 +167,10 @@ export default function WorkOrdersClient() {
     const to = searchParams.get('to') || '';
     if (from || to) {
       setPeriod({ mode: 'range', from, to });
+    } else if (searchParams.get('month')) {
+      setPeriod({ mode: 'month', month: searchParams.get('month') || '' });
     } else {
-      setPeriod({
-        mode: 'month',
-        month: searchParams.get('month') || new Date().toISOString().slice(0, 7),
-      });
+      setPeriod({ mode: 'range', from: '', to: '' });
     }
     setFinanceFilter(searchParams.get('finance') || '');
   }, [searchParams]);
