@@ -335,7 +335,7 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
           notes: order.notes,
           parts: order.parts.map((part) => ({
             ...part,
-            supplier: part.supplier?.trim() || DEFAULT_SUPPLIER,
+            supplier: part.supplier?.trim() || order.supplier?.trim() || DEFAULT_SUPPLIER,
           })),
           laborEntries: order.laborEntries.map((entry) => ({
             ...entry,
@@ -975,23 +975,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
                   ))}
                 </select>
               </label>
-              <button
-                type="button"
-                onClick={() =>
-                  appendPart({
-                    id: `part-new-${Date.now()}`,
-                    name: '',
-                    qty: 1,
-                    unitCost: 0,
-                    category: 'part',
-                    supplier: orderSupplier,
-                  })
-                }
-                className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
-              >
-                <Plus size={13} />
-                Dodaj dio
-              </button>
             </div>
           </div>
 
@@ -1347,30 +1330,6 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
             )}
           </div>
 
-          {/* Polje za popust */}
-          <div className="mb-4 flex flex-wrap items-center gap-2 sm:gap-4 p-3 bg-muted/50 rounded-lg">
-            <label className="text-xs font-medium text-foreground whitespace-normal sm:whitespace-nowrap">
-              Popust za klijenta %
-            </label>
-            <p className="min-w-0 flex-1 basis-full text-xs text-muted-foreground sm:basis-auto">
-              Popust koji se prikazuje klijentu na fakturi
-            </p>
-            <input
-              type="number"
-              inputMode="decimal"
-              min={0}
-              max={100}
-              step={0.5}
-              {...register('discountPct', {
-                valueAsNumber: true,
-                min: { value: 0, message: 'Min 0' },
-                max: { value: 100, message: 'Max 100' },
-              })}
-              className="w-20 px-3 py-1.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring tabular-nums text-right"
-            />
-            <span className="text-sm text-muted-foreground">%</span>
-          </div>
-
           <p className="sm:hidden mb-2 text-xs text-muted-foreground">
             Unosite podatke u karticama ispod — nema povlačenja lijevo-desno.
           </p>
@@ -1676,6 +1635,23 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
               </tfoot>
             </table>
           </div>
+          <button
+            type="button"
+            onClick={() =>
+              appendPart({
+                id: `part-new-${Date.now()}`,
+                name: '',
+                qty: 1,
+                unitCost: 0,
+                category: 'part',
+                supplier: orderSupplier,
+              })
+            }
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            <Plus size={13} />
+            Dodaj dio
+          </button>
         </section>
 
         <hr className="border-border" />
@@ -1771,6 +1747,36 @@ export default function WorkOrderModal({ open, onClose, order, onSave }: WorkOrd
         </section>
 
         <hr className="border-border" />
+
+        {/* Popust je uz završni obračun da se odmah vidi konačni iznos. */}
+        <section className="rounded-xl border border-border bg-muted/30 p-3 sm:p-4">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+            <label
+              htmlFor="client-discount"
+              className="text-xs font-medium text-foreground whitespace-normal sm:whitespace-nowrap"
+            >
+              Popust za klijenta %
+            </label>
+            <p className="min-w-0 flex-1 basis-full text-xs text-muted-foreground sm:basis-auto">
+              Popust koji se prikazuje klijentu na fakturi
+            </p>
+            <input
+              id="client-discount"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              max={100}
+              step={0.5}
+              {...register('discountPct', {
+                valueAsNumber: true,
+                min: { value: 0, message: 'Min 0' },
+                max: { value: 100, message: 'Max 100' },
+              })}
+              className="w-20 px-3 py-1.5 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-ring tabular-nums text-right"
+            />
+            <span className="text-sm text-muted-foreground">%</span>
+          </div>
+        </section>
 
         {/* Sekcija 6: Finansijski sažetak */}
         <section>

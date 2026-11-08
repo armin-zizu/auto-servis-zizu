@@ -10,7 +10,7 @@ import { orderFinanceDate } from './financeData';
 export function supplierOrderAmount(order: WorkOrder, supplier = 'Motorex'): number {
   if (order.status !== 'Zatvoren') return 0;
   return (order.parts ?? []).reduce((total: number, part: PartLineItem) => {
-    if ((part.supplier || 'Motorex') !== supplier) return total;
+    if ((part.supplier?.trim() || order.supplier?.trim() || 'Motorex') !== supplier) return total;
     const rebatePct =
       part.category === 'oil'
         ? Number(order.supplierOilDiscountPct) || 0
@@ -31,12 +31,26 @@ export function supplierRemainingAmount(order: WorkOrder, supplier = 'Motorex'):
 
 export function orderSupplierPaymentState(
   order: WorkOrder,
-  supplier = 'Motorex'
+  supplier?: string
 ): 'unpaid' | 'partial' | 'paid' {
-  if (supplierRemainingAmount(order, supplier) <= 0) {
-    return supplierPaidAmount(order, supplier) > 0 ? 'paid' : 'unpaid';
+  if (supplier) {
+    if (supplierRemainingAmount(order, supplier) <= 0) {
+      return supplierPaidAmount(order, supplier) > 0 ? 'paid' : 'unpaid';
+    }
+    return supplierPaidAmount(order, supplier) > 0 ? 'partial' : 'unpaid';
   }
-  return supplierPaidAmount(order, supplier) > 0 ? 'partial' : 'unpaid';
+
+  const suppliers = [
+    ...new Set(
+      (order.parts ?? [])
+        .filter((part) => Number(part.qty) * Number(part.unitCost) > 0)
+        .map((part) => part.supplier?.trim() || order.supplier?.trim() || 'Motorex')
+    ),
+  ];
+  const amountDue = suppliers.reduce((sum, name) => sum + supplierOrderAmount(order, name), 0);
+  const amountPaid = suppliers.reduce((sum, name) => sum + supplierPaidAmount(order, name), 0);
+  if (amountDue <= 0 || amountPaid <= 0) return 'unpaid';
+  return amountDue - amountPaid <= 0.005 ? 'paid' : 'partial';
 }
 
 export function lastSupplierPaymentDate(

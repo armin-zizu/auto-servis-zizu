@@ -3,17 +3,7 @@
 import React from 'react';
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
-import {
-  Search,
-  Plus,
-  ChevronDown,
-  ChevronUp,
-  ChevronsUpDown,
-  Edit2,
-  Trash2,
-  Eye,
-  CheckSquare,
-} from 'lucide-react';
+import { Search, Plus, ChevronDown, Edit2, Trash2, Eye, CheckSquare } from 'lucide-react';
 import StatusBadge, { OrderStatus } from '@/components/ui/StatusBadge';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import WorkOrderModal from './WorkOrderModal';
@@ -46,9 +36,6 @@ const ALL_STATUSES: OrderStatus[] = [
   'Otkazan',
 ];
 
-type SortKey = keyof WorkOrder | '';
-type SortDir = 'asc' | 'desc';
-
 function normalizeOrders(orders: WorkOrder[]): WorkOrder[] {
   return orders.map((order) => ({
     ...order,
@@ -56,7 +43,7 @@ function normalizeOrders(orders: WorkOrder[]): WorkOrder[] {
     createdByRole: order.createdByRole ?? 'owner',
     parts: (order.parts ?? []).map((part) => ({
       ...part,
-      supplier: part.supplier?.trim() || DEFAULT_SUPPLIER,
+      supplier: part.supplier?.trim() || order.supplier?.trim() || DEFAULT_SUPPLIER,
     })),
   }));
 }
@@ -88,8 +75,6 @@ export default function WorkOrdersClient() {
   const [mechanicFilter, setMechanicFilter] = useState<string>('Svi');
   const [supplierFilter, setSupplierFilter] = useState<string>('Svi');
   const [registeredSuppliers, setRegisteredSuppliers] = useState<string[]>(DEFAULT_SUPPLIERS);
-  const [sortKey, setSortKey] = useState<SortKey>('orderNum');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -252,24 +237,13 @@ export default function WorkOrdersClient() {
           )
       );
     }
-    if (sortKey) {
-      result = [...result].sort((a, b) => {
-        if (sortKey === 'workDate') {
-          const av = sortableDate(a);
-          const bv = sortableDate(b);
-          return sortDir === 'asc' ? av - bv : bv - av;
-        }
-
-        const av = a[sortKey as keyof WorkOrder];
-        const bv = b[sortKey as keyof WorkOrder];
-        if (typeof av === 'number' && typeof bv === 'number') {
-          return sortDir === 'asc' ? av - bv : bv - av;
-        }
-        return sortDir === 'asc'
-          ? String(av).localeCompare(String(bv))
-          : String(bv).localeCompare(String(av));
-      });
-    }
+    result = [...result].sort((a, b) => {
+      const dateDifference = sortableDate(b) - sortableDate(a);
+      if (dateDifference) return dateDifference;
+      const createdDifference = Date.parse(b.createdAt || '') - Date.parse(a.createdAt || '');
+      if (Number.isFinite(createdDifference) && createdDifference) return createdDifference;
+      return b.orderNum.localeCompare(a.orderNum, undefined, { numeric: true });
+    });
     return result;
   }, [
     orders,
@@ -281,8 +255,6 @@ export default function WorkOrdersClient() {
     financeFilter,
     mechanicFilter,
     supplierFilter,
-    sortKey,
-    sortDir,
   ]);
 
   const totalPages = Math.ceil(filtered.length / pageSize);
@@ -292,25 +264,6 @@ export default function WorkOrdersClient() {
     const validPage = Math.max(1, totalPages);
     if (page > validPage) setPage(validPage);
   }, [page, totalPages]);
-
-  const handleSort = (key: SortKey) => {
-    if (sortKey === key) {
-      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortKey(key);
-      setSortDir('desc');
-    }
-    setPage(1);
-  };
-
-  const SortIcon = ({ col }: { col: SortKey }) => {
-    if (sortKey !== col) return <ChevronsUpDown size={13} className="text-muted-foreground/50" />;
-    return sortDir === 'asc' ? (
-      <ChevronUp size={13} className="text-primary" />
-    ) : (
-      <ChevronDown size={13} className="text-primary" />
-    );
-  };
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -583,29 +536,26 @@ export default function WorkOrdersClient() {
                     aria-label="Odaberi sve"
                   />
                 </th>
-                {(
-                  [
-                    { key: 'orderNum', label: 'Nalog #' },
-                    { key: 'workDate', label: 'Datum' },
-                    { key: 'clientName', label: 'Klijent' },
-                    { key: 'vehicle', label: 'Vozilo' },
-                    { key: 'mechanic', label: 'Majstor' },
-                    { key: 'createdBy', label: 'Kreirao' },
-                    { key: 'status', label: 'Status' },
-                    { key: 'partsTotal', label: 'Dijelovi' },
-                    { key: 'laborTotal', label: 'Rad' },
-                    { key: 'discountPct', label: 'Pop %' },
-                    { key: 'orderTotal', label: 'Ukupno' },
-                  ] as { key: SortKey; label: string }[]
-                ).map((col) => (
+                {[
+                  'Nalog #',
+                  'Datum',
+                  'Klijent',
+                  'Vozilo',
+                  'Majstor',
+                  'Kreirao',
+                  'Status',
+                  'Dijelovi',
+                  'Rad',
+                  'Pop %',
+                  'Ukupno',
+                ].map((label) => (
                   <th
-                    key={`col-${String(col.key)}`}
-                    onClick={() => handleSort(col.key)}
-                    className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide cursor-pointer hover:text-foreground select-none whitespace-nowrap"
+                    key={`col-${label}`}
+                    className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wide whitespace-nowrap"
                   >
                     <span className="inline-flex items-center gap-1">
-                      {col.label}
-                      <SortIcon col={col.key} />
+                      {label}
+                      {label === 'Datum' && <ChevronDown size={13} className="text-primary" />}
                     </span>
                   </th>
                 ))}
@@ -808,9 +758,9 @@ function WorkOrderRow({
       className={`group transition-colors duration-100 ${
         selected
           ? 'bg-primary/5'
-          : orderSupplierPaymentState(order, DEFAULT_SUPPLIER) === 'paid'
+          : orderSupplierPaymentState(order) === 'paid'
             ? 'bg-emerald-50/80 hover:bg-emerald-100/70'
-            : orderSupplierPaymentState(order, DEFAULT_SUPPLIER) === 'partial'
+            : orderSupplierPaymentState(order) === 'partial'
               ? 'bg-lime-50/70 hover:bg-lime-100/60'
               : 'hover:bg-muted/40'
       } cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-primary/40`}

@@ -100,25 +100,27 @@ export default function FinancePage() {
 
         <FinanceTrendChart period={period} />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
           {sections.map((section) => {
             const Icon = section.icon;
             return (
               <Link
                 key={section.label}
                 href={getSectionHref(section.financeFilter)}
-                className={`rounded-xl border p-5 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-ring ${section.className}`}
+                className={`rounded-xl border p-3 sm:p-5 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all focus:outline-none focus:ring-2 focus:ring-ring ${section.className}`}
                 title={`Prikaži naloge za period ${periodLabel}`}
               >
                 <div className="flex items-start justify-between">
-                  <Icon size={22} />
-                  <ArrowRight size={17} className="opacity-40" />
+                  <Icon size={18} className="sm:h-[22px] sm:w-[22px]" />
+                  <ArrowRight size={15} className="opacity-40 sm:h-[17px] sm:w-[17px]" />
                 </div>
-                <p className="text-xs font-medium uppercase tracking-wide mt-6">{section.label}</p>
-                <p className="text-2xl font-bold text-foreground tabular-nums mt-1">
+                <p className="text-[10px] sm:text-xs font-medium uppercase tracking-wide mt-4 sm:mt-6">
+                  {section.label}
+                </p>
+                <p className="text-base sm:text-2xl font-bold text-foreground tabular-nums mt-1">
                   {section.value}
                 </p>
-                <p className="text-xs mt-1 opacity-80">{section.description}</p>
+                <p className="text-[10px] sm:text-xs mt-1 opacity-80">{section.description}</p>
               </Link>
             );
           })}
